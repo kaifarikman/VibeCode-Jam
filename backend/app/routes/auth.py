@@ -21,22 +21,31 @@ async def request_code(
     payload: AuthCodeRequest,
     session: AsyncSession = Depends(get_session),
 ):
-    settings = get_settings()
-    user = await upsert_user(session, payload.email, payload.full_name)
-    code = generate_code()
-    await store_code(session, user, code)
-    await session.commit()
+    try:
+        settings = get_settings()
+        user = await upsert_user(session, payload.email, payload.full_name)
+        code = generate_code()
+        await store_code(session, user, code)
+        await session.commit()
 
-    email_service = EmailService(settings)
+        email_service = EmailService(settings)
 
-    async def fire_and_forget():
-        try:
-            await email_service.send_login_code(payload.email, code)
-        except Exception as exc:  # noqa: BLE001
-            logger.error('Failed to send login code: %s', exc)
+        async def fire_and_forget():
+            try:
+                await email_service.send_login_code(payload.email, code)
+                logger.info('Login code sent successfully to %s', payload.email)
+            except Exception as exc:  # noqa: BLE001
+                logger.error('Failed to send login code to %s: %s', payload.email, exc, exc_info=True)
 
-    asyncio.create_task(fire_and_forget())
-    return {'detail': 'Code sent'}
+        asyncio.create_task(fire_and_forget())
+        return {'detail': 'Code sent'}
+    except Exception as exc:  # noqa: BLE001
+        logger.error('Error in request_code: %s', exc, exc_info=True)
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Failed to process request'
+        ) from exc
 
 
 @router.post('/verify', response_model=AuthSuccessResponse)

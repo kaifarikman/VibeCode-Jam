@@ -1,0 +1,368 @@
+.admin-panel {
+  min-height: 100vh;
+  background: radial-gradient(circle at 10% 20%, rgba(127, 90, 240, 0.25), transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(146, 81, 247, 0.15), transparent 45%),
+    #05060a;
+  padding: clamp(32px, 5vw, 64px);
+  color: #f5f7ff;
+}
+
+.admin-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.admin-header {
+  max-width: 1200px;
+  margin: 0 auto 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.admin-header h1 {
+  margin: 0 0 8px 0;
+  font-size: clamp(32px, 5vw, 48px);
+  background: linear-gradient(135deg, #f5f7ff 0%, rgba(245, 247, 255, 0.8) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+}
+
+.admin-subtitle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+}
+
+.admin-back-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f5f7ff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.admin-back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(127, 90, 240, 0.5);
+}
+
+.admin-error {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ff7b7b;
+  font-size: 14px;
+  padding: 12px 16px;
+  background: rgba(255, 123, 123, 0.1);
+  border: 1px solid rgba(255, 123, 123, 0.2);
+  border-radius: 12px;
+}
+
+.admin-actions {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+}
+
+.admin-add-btn {
+  background: linear-gradient(135deg, #7f5af0, #9251f7);
+  border: none;
+  color: #fff;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(127, 90, 240, 0.3);
+}
+
+.admin-add-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(127, 90, 240, 0.4);
+}
+
+.admin-form-card {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+  background: rgba(7, 9, 15, 0.94);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.admin-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.admin-form-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.admin-form-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.admin-form-card textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 14px 16px;
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.admin-form-card textarea:focus {
+  outline: none;
+  border-color: rgba(127, 90, 240, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
+}
+
+.admin-form-card input[type="number"] {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px 16px;
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.admin-form-card input[type="number"]:focus {
+  outline: none;
+  border-color: rgba(127, 90, 240, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
+}
+
+.admin-form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.questions-list {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 16px;
+}
+
+.question-card {
+  background: rgba(7, 9, 15, 0.94);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  transition: all 0.2s ease;
+}
+
+.question-card:hover {
+  border-color: rgba(127, 90, 240, 0.3);
+  box-shadow: 0 20px 60px rgba(127, 90, 240, 0.15);
+}
+
+.question-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.question-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, rgba(127, 90, 240, 0.2), rgba(146, 81, 247, 0.2));
+  border: 1px solid rgba(127, 90, 240, 0.3);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #7f5af0;
+}
+
+.question-text {
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 8px 0;
+}
+
+.question-meta {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.question-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.edit-btn,
+.delete-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.edit-btn {
+  background: rgba(127, 90, 240, 0.2);
+  border: 1px solid rgba(127, 90, 240, 0.3);
+  color: #7f5af0;
+}
+
+.edit-btn:hover {
+  background: rgba(127, 90, 240, 0.3);
+  border-color: rgba(127, 90, 240, 0.5);
+}
+
+.delete-btn {
+  background: rgba(255, 123, 123, 0.1);
+  border: 1px solid rgba(255, 123, 123, 0.2);
+  color: #ff7b7b;
+}
+
+.delete-btn:hover {
+  background: rgba(255, 123, 123, 0.2);
+  border-color: rgba(255, 123, 123, 0.4);
+}
+
+.question-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.question-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.question-edit textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 14px 16px;
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.question-edit textarea:focus {
+  outline: none;
+  border-color: rgba(127, 90, 240, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
+}
+
+.question-edit input[type="number"] {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px 16px;
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.question-edit input[type="number"]:focus {
+  outline: none;
+  border-color: rgba(127, 90, 240, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
+}
+
+.question-edit-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .admin-header {
+    flex-direction: column;
+  }
+
+  .question-actions {
+    flex-direction: column;
+  }
+
+  .edit-btn,
+  .delete-btn {
+    width: 100%;
+  }
+}
+

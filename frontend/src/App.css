@@ -443,25 +443,97 @@
 .screen {
   min-height: 100vh;
   background: radial-gradient(circle at 10% 20%, rgba(127, 90, 240, 0.25), transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(146, 81, 247, 0.15), transparent 45%),
     #05060a;
   padding: clamp(32px, 8vw, 96px);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(127, 90, 240, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(146, 81, 247, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  animation: pulse 8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .auth-screen,
 .dashboard-screen {
   width: min(640px, 100%);
   background: rgba(7, 9, 15, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
-  padding: clamp(24px, 4vw, 48px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  padding: clamp(32px, 5vw, 56px);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(127, 90, 240, 0.1) inset;
   color: #f5f7ff;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.auth-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, rgba(127, 90, 240, 0.2), rgba(146, 81, 247, 0.2));
+  border-radius: 20px;
+  border: 1px solid rgba(127, 90, 240, 0.3);
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.auth-header h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 40px);
+  background: linear-gradient(135deg, #f5f7ff 0%, rgba(245, 247, 255, 0.8) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .auth-card {
@@ -470,7 +542,6 @@
   gap: 20px;
 }
 
-.auth-card h1,
 .dashboard-screen h1 {
   margin: 0;
   font-size: clamp(28px, 4vw, 40px);
@@ -491,30 +562,131 @@
 .auth-card label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+.label-text {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 4px;
 }
 
 .auth-card input {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 14px 16px;
   color: #fff;
+  font-size: 15px;
+  transition: all 0.2s ease;
+  font-family: inherit;
 }
 
-.auth-card button {
+.auth-card input:focus {
+  outline: none;
+  border-color: rgba(127, 90, 240, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
+}
+
+.auth-card input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.code-input {
+  text-align: center;
+  font-size: 24px;
+  letter-spacing: 8px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.submit-btn {
   border: none;
   border-radius: 12px;
-  padding: 12px 16px;
+  padding: 14px 20px;
   font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
-}
-
-.auth-card button[type='submit'] {
   background: linear-gradient(135deg, #7f5af0, #9251f7);
   color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(127, 90, 240, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.submit-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.submit-btn:hover::before {
+  left: 100%;
+}
+
+.submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(127, 90, 240, 0.4);
+}
+
+.submit-btn:active {
+  transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.verify-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.verify-icon {
+  font-size: 48px;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 .verify-form .verify-actions {
@@ -522,17 +694,270 @@
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+  margin-top: 8px;
 }
 
 .verify-info {
   margin: 0;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.75);
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+}
+
+.verify-info strong {
+  color: #fff;
+  font-weight: 600;
 }
 
 .auth-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: #ff7b7b;
-  font-size: 13px;
+  font-size: 14px;
+  padding: 12px 16px;
+  background: rgba(255, 123, 123, 0.1);
+  border: 1px solid rgba(255, 123, 123, 0.2);
+  border-radius: 12px;
+  margin-top: 8px;
+}
+
+.error-icon {
+  font-size: 18px;
+}
+
+/* Survey Section */
+.survey-prompt {
+  background: linear-gradient(135deg, rgba(127, 90, 240, 0.1), rgba(146, 81, 247, 0.1));
+  border: 1px solid rgba(127, 90, 240, 0.2);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.survey-icon {
+  font-size: 40px;
+  filter: drop-shadow(0 2px 4px rgba(127, 90, 240, 0.3));
+}
+
+.survey-prompt p {
+  margin: 0;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+}
+
+.survey-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.survey-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.survey-btn.primary {
+  background: linear-gradient(135deg, #7f5af0, #9251f7);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(127, 90, 240, 0.3);
+}
+
+.survey-btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(127, 90, 240, 0.4);
+}
+
+.survey-section {
+  background: rgba(12, 14, 22, 0.95);
+  border: 1px solid rgba(127, 90, 240, 0.2);
+  border-radius: 16px;
+  padding: 24px;
+  animation: slideIn 0.3s ease-out;
+}
+
+.survey-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.survey-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.close-survey {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.close-survey:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.survey-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.survey-question {
+  margin: 0;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+}
+
+.survey-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.survey-text-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.survey-text-input textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 14px 16px;
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.survey-text-input textarea:focus {
+  outline: none;
+  border-color: rgba(127, 90, 240, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
+}
+
+.survey-text-input textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.survey-navigation {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.survey-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.survey-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(127, 90, 240, 0.3);
+}
+
+.survey-option input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #7f5af0;
+  cursor: pointer;
+}
+
+.survey-option span {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.9);
+  flex: 1;
+}
+
+.survey-submit {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(135deg, #7f5af0, #9251f7);
+  color: #fff;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(127, 90, 240, 0.3);
+}
+
+.survey-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(127, 90, 240, 0.4);
+}
+
+.survey-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.dashboard-screen .survey-prompt,
+.dashboard-screen .survey-section {
+  margin: 24px 0;
+}
+
+.eyebrow {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(127, 90, 240, 0.8);
+  font-weight: 600;
 }
 
 .dashboard-screen .stats {
@@ -572,6 +997,25 @@
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 12px;
+}
+
+.admin-link-btn {
+  background: rgba(127, 90, 240, 0.15);
+  border: 1px solid rgba(127, 90, 240, 0.3);
+  color: #7f5af0;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.admin-link-btn:hover {
+  background: rgba(127, 90, 240, 0.25);
+  border-color: rgba(127, 90, 240, 0.5);
+  transform: translateY(-2px);
 }
 
 @media (max-width: 1200px) {

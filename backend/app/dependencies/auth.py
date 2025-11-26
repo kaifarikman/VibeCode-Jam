@@ -1,12 +1,14 @@
+import uuid
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import get_settings
 from ..core.security import decode_access_token
 from ..database import get_session
 from ..models import User
-from sqlalchemy import select
 
 
 settings = get_settings()
@@ -22,9 +24,14 @@ async def get_current_user(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token')
 
-    user_id = payload.get('sub')
-    if not user_id:
+    user_id_str = payload.get('sub')
+    if not user_id_str:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token')
+
+    try:
+        user_id = uuid.UUID(str(user_id_str))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid user ID')
 
     user = await session.scalar(select(User).where(User.id == user_id))
     if not user:

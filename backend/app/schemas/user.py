@@ -8,6 +8,7 @@ class UserRead(BaseModel):
     id: uuid.UUID
     email: EmailStr
     full_name: str | None
+    is_admin: bool
     created_at: datetime
     last_login_at: datetime | None
 

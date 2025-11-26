@@ -20,9 +20,12 @@ import {
   type ConsoleLine,
   type IdeFile,
 } from './modules/ide/sampleWorkspace'
+import { fetchMyAnswers, fetchQuestions, submitAnswer } from './modules/questions/api'
+import type { Question } from './modules/questions/types'
+import { AdminPanel } from './components/AdminPanel'
 
 const TOKEN_STORAGE_KEY = 'vibecode_token'
-type ViewMode = 'auth' | 'dashboard' | 'ide'
+type ViewMode = 'auth' | 'dashboard' | 'ide' | 'admin'
 
 const timestamp = () =>
   new Intl.DateTimeFormat('ru-RU', {
@@ -59,6 +62,12 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
     token ? 'dashboard' : 'auth',
   )
+  const [showSurvey, setShowSurvey] = useState(false)
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [surveyCompleted, setSurveyCompleted] = useState(false)
+  const [surveyLoading, setSurveyLoading] = useState(false)
 
   const activeFile = useMemo(
     () => files.find((file) => file.id === activeFileId) ?? files[0],
@@ -101,6 +110,66 @@ function App() {
     }
     void hydrateProfile(token).then(() => setViewMode('dashboard'))
   }, [token])
+
+  useEffect(() => {
+    if (token && viewMode === 'dashboard') {
+      void loadQuestionsAndAnswers()
+    }
+  }, [token, viewMode])
+
+  const loadQuestionsAndAnswers = async () => {
+    if (!token) return
+    try {
+      // Сначала загружаем вопросы
+      const questionsData = await fetchQuestions(token)
+      setQuestions(questionsData)
+      
+      // Потом загружаем ответы
+      const answersData = await fetchMyAnswers(token)
+      const answersMap: Record<string, string> = {}
+      answersData.forEach((answer) => {
+        answersMap[answer.question_id] = answer.text
+      })
+      setAnswers(answersMap)
+      
+      // Проверяем, завершен ли опрос (все вопросы отвечены)
+      if (questionsData.length > 0 && answersData.length === questionsData.length) {
+        const allAnswered = questionsData.every((q) => answersMap[q.id]?.trim())
+        if (allAnswered) {
+          setSurveyCompleted(true)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load questions/answers:', error)
+    }
+  }
+
+  // Проверяем, завершен ли опрос при изменении ответов
+  useEffect(() => {
+    if (questions.length > 0 && Object.keys(answers).length === questions.length) {
+      const allAnswered = questions.every((q) => answers[q.id]?.trim())
+      if (allAnswered && !surveyCompleted) {
+        setSurveyCompleted(true)
+      }
+    }
+  }, [answers, questions, surveyCompleted])
+
+  const handleSubmitAnswer = async (questionId: string, text: string) => {
+    if (!token) return
+    try {
+      setSurveyLoading(true)
+      await submitAnswer(token, questionId, { question_id: questionId, text })
+      setAnswers((prev) => ({ ...prev, [questionId]: text }))
+      appendLog('Ответ сохранен', 'success')
+    } catch (error) {
+      appendLog(
+        error instanceof Error ? error.message : 'Ошибка сохранения ответа',
+        'error',
+      )
+    } finally {
+      setSurveyLoading(false)
+    }
+  }
 
   const handleRunSuite = () => {
     if (!user) {
@@ -163,29 +232,74 @@ function App() {
     setAuthStage('request')
   }
 
+  if (viewMode === 'admin' && token) {
+    return <AdminPanel token={token} onBack={() => setViewMode('dashboard')} />
+  }
+
   if (viewMode !== 'ide') {
     return (
       <div className="screen">
         {viewMode === 'auth' && (
           <section className="auth-screen">
-            <div className="auth-card">
+            <div className="auth-header">
+              <div className="auth-logo">
+                <svg
+                  width="64"
+                  height="64"
+                  viewBox="0 0 64 64"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect
+                    width="64"
+                    height="64"
+                    rx="16"
+                    fill="url(#gradient)"
+                    opacity="0.2"
+                  />
+                  <path
+                    d="M32 16L42 26L32 36L22 26L32 16Z"
+                    stroke="url(#gradient)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M22 38L32 48L42 38"
+                    stroke="url(#gradient)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <defs>
+                    <linearGradient id="gradient" x1="0" y1="0" x2="64" y2="64">
+                      <stop offset="0%" stopColor="#7f5af0" />
+                      <stop offset="100%" stopColor="#9251f7" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
               <h1>Добро пожаловать в VibeCode IDE</h1>
               <p className="subtitle">
                 Получи одноразовый код подтверждения и мы подготовим личный кабинет.
               </p>
+            </div>
+
+            <div className="auth-card">
               {authStage === 'request' && (
                 <form onSubmit={handleRequestCode}>
                   <label>
-                    E-mail
+                    <span className="label-text">E-mail</span>
                     <input
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
+                      placeholder="your@email.com"
                       required
                     />
                   </label>
                   <label>
-                    Имя (необязательно)
+                    <span className="label-text">Имя (необязательно)</span>
                     <input
                       type="text"
                       value={fullName}
@@ -193,31 +307,67 @@ function App() {
                       placeholder="Как к тебе обращаться"
                     />
                   </label>
-                  <button type="submit" disabled={authLoading}>
-                    {authLoading ? 'Отправляем...' : 'Получить код'}
+                  <button type="submit" disabled={authLoading} className="submit-btn">
+                    {authLoading ? (
+                      <>
+                        <span className="spinner"></span>
+                        Отправляем...
+                      </>
+                    ) : (
+                      <>
+                        <span>Получить код</span>
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M7.5 15L12.5 10L7.5 5"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </>
+                    )}
                   </button>
                 </form>
               )}
 
               {authStage === 'verify' && (
                 <form onSubmit={handleVerifyCode} className="verify-form">
-                  <p className="verify-info">
-                    Введите код, который пришёл на <strong>{email || 'почту'}</strong>
-                  </p>
+                  <div className="verify-header">
+                    <div className="verify-icon">✉️</div>
+                    <p className="verify-info">
+                      Введите код, который пришёл на <strong>{email || 'почту'}</strong>
+                    </p>
+                  </div>
                   <label>
-                    6-значный код
+                    <span className="label-text">6-значный код</span>
                     <input
                       type="text"
                       value={code}
                       onChange={(event) => setCode(event.target.value)}
                       minLength={6}
                       maxLength={6}
+                      placeholder="000000"
                       required
+                      className="code-input"
                     />
                   </label>
                   <div className="verify-actions">
-                    <button type="submit" disabled={authLoading}>
-                      {authLoading ? 'Проверяем...' : 'Подтвердить'}
+                    <button type="submit" disabled={authLoading} className="submit-btn">
+                      {authLoading ? (
+                        <>
+                          <span className="spinner"></span>
+                          Проверяем...
+                        </>
+                      ) : (
+                        'Подтвердить'
+                      )}
                     </button>
                     <button
                       type="button"
@@ -230,7 +380,12 @@ function App() {
                 </form>
               )}
 
-              {authError && <p className="auth-error">{authError}</p>}
+              {authError && (
+                <div className="auth-error">
+                  <span className="error-icon">⚠️</span>
+                  <span>{authError}</span>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -260,10 +415,132 @@ function App() {
                 </ul>
               )}
             </div>
+
+            {!surveyCompleted && questions.length > 0 && (
+              <>
+                {!showSurvey ? (
+                  <div className="survey-prompt">
+                    <div className="survey-icon">📋</div>
+                    <p>Помоги нам улучшить сервис — пройди опрос ({questions.length} вопросов)</p>
+                    <div className="survey-actions">
+                      <button
+                        type="button"
+                        className="survey-btn primary"
+                        onClick={() => {
+                          setShowSurvey(true)
+                          setCurrentQuestionIndex(0)
+                        }}
+                      >
+                        Пройти опрос
+                      </button>
+                      <button
+                        type="button"
+                        className="survey-btn ghost"
+                        onClick={() => setSurveyCompleted(true)}
+                      >
+                        Пропустить
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="survey-section">
+                    <div className="survey-header">
+                      <h3>
+                        Вопрос {currentQuestionIndex + 1} из {questions.length}
+                      </h3>
+                      <button
+                        type="button"
+                        className="close-survey"
+                        onClick={() => {
+                          setShowSurvey(false)
+                          if (Object.keys(answers).length === questions.length) {
+                            setSurveyCompleted(true)
+                          }
+                        }}
+                        aria-label="Закрыть опрос"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="survey-content">
+                      {currentQuestionIndex < questions.length && (
+                        <>
+                          <p className="survey-question">
+                            {questions[currentQuestionIndex].text}
+                          </p>
+                          <label className="survey-text-input">
+                            <span className="label-text">Ваш ответ</span>
+                            <textarea
+                              value={answers[questions[currentQuestionIndex].id] || ''}
+                              onChange={(e) =>
+                                setAnswers({
+                                  ...answers,
+                                  [questions[currentQuestionIndex].id]: e.target.value,
+                                })
+                              }
+                              placeholder="Введите ваш ответ..."
+                              rows={4}
+                              required
+                            />
+                          </label>
+                          <div className="survey-navigation">
+                            {currentQuestionIndex > 0 && (
+                              <button
+                                type="button"
+                                className="survey-btn ghost"
+                                onClick={() => setCurrentQuestionIndex(currentQuestionIndex - 1)}
+                              >
+                                ← Назад
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="survey-submit"
+                              disabled={
+                                !answers[questions[currentQuestionIndex].id]?.trim() ||
+                                surveyLoading
+                              }
+                              onClick={async () => {
+                                const question = questions[currentQuestionIndex]
+                                const answerText = answers[question.id]
+                                if (answerText?.trim()) {
+                                  await handleSubmitAnswer(question.id, answerText)
+                                  if (currentQuestionIndex < questions.length - 1) {
+                                    setCurrentQuestionIndex(currentQuestionIndex + 1)
+                                  } else {
+                                    setShowSurvey(false)
+                                    setSurveyCompleted(true)
+                                    appendLog('Опрос завершен', 'success')
+                                  }
+                                }
+                              }}
+                            >
+                              {currentQuestionIndex < questions.length - 1
+                                ? 'Далее →'
+                                : 'Завершить'}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
             <div className="dashboard-actions">
               <button type="button" className="ghost" onClick={handleLogout}>
                 Выйти
               </button>
+              {user?.is_admin && (
+                <button
+                  type="button"
+                  className="admin-link-btn"
+                  onClick={() => setViewMode('admin')}
+                >
+                  🔧 Админка
+                </button>
+              )}
               <button type="button" className="primary" onClick={() => setViewMode('ide')}>
                 Перейти в редактор
               </button>

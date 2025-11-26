@@ -1,42 +1,47 @@
 # Backend (FastAPI)
 
-Сервис отвечает за авторизацию пользователей, выдачу одноразовых кодов, отправку e-mail через Mailhog и предоставление данных личного кабинета для IDE.
+> 📖 **Полная документация:** см. [главный README.md](../README.md)
 
 ## Быстрый старт
 
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
+# Windows
+python -m venv venv
+.\venv\Scripts\activate
 pip install -r requirements.txt
+copy env.example .env
+cd app
+python -m alembic upgrade head
+cd ..
+uvicorn app.main:app --reload
+
+# Linux/macOS
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp env.example .env
+cd app
+python -m alembic upgrade head
+cd ..
 uvicorn app.main:app --reload
 ```
-
-Перед запуском создайте файл `.env` на основе `env.example` и поднимите инфраструктуру:
-
-```bash
-docker compose up -d
-```
-
-## Основные зависимости
-
-- FastAPI + Pydantic Settings
-- SQLAlchemy (async) + PostgreSQL
-- aiosmtplib для отправки почты (Mailhog)
-- JWT токены (`python-jose`)
 
 ## Структура
 
 ```
 app/
-  core/        # конфигурация, безопасность
-  database.py  # engine + session
+  alembic/     # Миграции базы данных
+  core/        # Конфигурация, безопасность
   models/      # SQLAlchemy модели
-  routes/      # роуты FastAPI
-  services/    # почта, auth-логика
-  schemas/     # pydantic-схемы
+  routes/      # API роуты
+  services/    # Бизнес-логика, CRUD
+  schemas/     # Pydantic схемы
 ```
 
-При первом старте таблицы создаются автоматически. В проде рекомендуется добавить миграции (Alembic).  
-Личные данные пользователей и одноразовые коды хранятся в PostgreSQL, логин-коды автоматически истекают через 10 минут.
+## Технологии
 
+- FastAPI + Pydantic Settings
+- SQLAlchemy (async) + PostgreSQL
+- Alembic (миграции)
+- aiosmtplib (Mailhog)
+- JWT токены (python-jose)

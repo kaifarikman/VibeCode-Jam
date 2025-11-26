@@ -16,12 +16,16 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_admin: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     codes: Mapped[list['LoginCode']] = relationship(
+        back_populates='user', cascade='all, delete-orphan'
+    )
+    answers: Mapped[list['Answer']] = relationship(
         back_populates='user', cascade='all, delete-orphan'
     )
 

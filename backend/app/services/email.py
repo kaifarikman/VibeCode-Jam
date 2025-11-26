@@ -32,6 +32,7 @@ class EmailService:
             start_tls=self._settings.smtp_tls,
             username=self._settings.smtp_user or None,
             password=self._settings.smtp_password or None,
+            timeout=10,  # Таймаут 10 секунд
         )
 
 
