@@ -1,7 +1,8 @@
 import type {
   AuthSuccessResponse,
   DashboardSnapshot,
-  RequestCodePayload,
+  LoginPayload,
+  RegisterPayload,
   UserProfile,
   VerifyCodePayload,
 } from './types'
@@ -11,30 +12,49 @@ const API_BASE_URL =
 
 const buildUrl = (path: string) => `${API_BASE_URL}${path}`
 
-const defaultHeaders = {
+const jsonHeaders = {
   'Content-Type': 'application/json',
 }
 
-export async function requestLoginCode(payload: RequestCodePayload) {
-  const response = await fetch(buildUrl('/auth/request-code'), {
+export async function registerUser(payload: RegisterPayload) {
+  const response = await fetch(buildUrl('/auth/register'), {
     method: 'POST',
-    headers: defaultHeaders,
-    body: JSON.stringify(payload),
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      email: payload.email,
+      full_name: payload.fullName,
+      password: payload.password,
+    }),
   })
   if (!response.ok) {
-    throw new Error('Не удалось отправить код. Проверь почту и попробуй снова.')
+    const error = await response.json().catch(() => ({ detail: 'Не удалось отправить код' }))
+    throw new Error(error.detail || 'Не удалось отправить код подтверждения')
   }
   return response.json()
 }
 
-export async function verifyLoginCode(payload: VerifyCodePayload) {
+export async function verifyRegistration(payload: VerifyCodePayload) {
   const response = await fetch(buildUrl('/auth/verify'), {
     method: 'POST',
-    headers: defaultHeaders,
+    headers: jsonHeaders,
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    throw new Error('Код недействителен или истёк.')
+    const error = await response.json().catch(() => ({ detail: 'Код недействителен' }))
+    throw new Error(error.detail || 'Код недействителен или истёк')
+  }
+  return response.json()
+}
+
+export async function login(payload: LoginPayload) {
+  const response = await fetch(buildUrl('/auth/login'), {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Ошибка входа' }))
+    throw new Error(error.detail || 'Неверный email или пароль')
   }
   return (await response.json()) as AuthSuccessResponse
 }

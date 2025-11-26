@@ -1,12 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import './App.css'
-import {
-  fetchDashboard,
-  fetchProfile,
-  requestLoginCode,
-  verifyLoginCode,
-} from './modules/auth/api'
+import { fetchDashboard, fetchProfile, login, registerUser, verifyRegistration } from './modules/auth/api'
 import type {
   AuthStage,
   DashboardSnapshot,
@@ -25,7 +20,7 @@ import type { Question } from './modules/questions/types'
 import { AdminPanel } from './components/AdminPanel'
 
 const TOKEN_STORAGE_KEY = 'vibecode_token'
-type ViewMode = 'auth' | 'dashboard' | 'ide' | 'admin'
+type ViewMode = 'landing' | 'dashboard' | 'ide' | 'admin'
 
 const timestamp = () =>
   new Intl.DateTimeFormat('ru-RU', {
@@ -48,11 +43,14 @@ function App() {
   const [activeFileId, setActiveFileId] = useState(sampleFiles[0]?.id ?? '')
   const [consoleLines, setConsoleLines] = useState<ConsoleLine[]>(defaultConsole)
   const [selectedRuntime, setSelectedRuntime] = useState(runtimeTargets[0]?.id ?? '')
-  const [authStage, setAuthStage] = useState<AuthStage>('request')
+  const [authStage, setAuthStage] = useState<AuthStage>('landing')
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [authInfo, setAuthInfo] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
+  const [password, setPassword] = useState('')
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [token, setToken] = useState<string | null>(() =>
     window.localStorage.getItem(TOKEN_STORAGE_KEY),
@@ -60,7 +58,7 @@ function App() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
-    token ? 'dashboard' : 'auth',
+    token ? 'dashboard' : 'landing',
   )
   const [showSurvey, setShowSurvey] = useState(false)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -87,6 +85,219 @@ function App() {
   const appendLog = (message: string, level?: ConsoleLevel) =>
     setConsoleLines((prev) => [...prev, createLog(message, level)])
 
+  const resetAuthStatus = () => {
+    setAuthError(null)
+    setAuthInfo(null)
+  }
+
+  const closeAuthModal = () => {
+    setAuthStage('landing')
+    resetAuthStatus()
+    setAuthLoading(false)
+    setPassword('')
+    setCode('')
+    setPendingEmail(null)
+  }
+
+  const startAuthFlow = (stage: Exclude<AuthStage, 'landing'>) => {
+    setAuthStage(stage)
+    resetAuthStatus()
+    if (stage === 'register') {
+      setPendingEmail(null)
+      setPassword('')
+    }
+  }
+
+  const handleLoginSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    setAuthLoading(true)
+    resetAuthStatus()
+    try {
+      const data = await login({ email, password })
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, data.access_token)
+      setToken(data.access_token)
+      setUser(data.user)
+      setPassword('')
+      closeAuthModal()
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Не удалось войти')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const handleRegisterSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    setAuthLoading(true)
+    resetAuthStatus()
+    try {
+      await registerUser({ email, fullName, password })
+      setPendingEmail(email)
+      setAuthStage('verify')
+      setAuthInfo(`Мы отправили код подтверждения на ${email}.`)
+      setCode('')
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Не удалось отправить код')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const handleVerifySubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!(pendingEmail || email)) {
+      setAuthError('Укажи e-mail, который использовал при регистрации')
+      return
+    }
+    setAuthLoading(true)
+    resetAuthStatus()
+    try {
+      await verifyRegistration({
+        email: pendingEmail ?? email,
+        code,
+      })
+      setAuthInfo('Email подтвержден. Теперь можно войти.')
+      setAuthStage('login')
+      setCode('')
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Не удалось подтвердить код')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  const renderAuthForm = () => {
+    if (authStage === 'login') {
+      return (
+        <>
+          <h2>Вход в аккаунт</h2>
+          <form onSubmit={handleLoginSubmit}>
+            <label>
+              <span className="label-text">E-mail</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="your@email.com"
+                required
+              />
+            </label>
+            <label>
+              <span className="label-text">Пароль</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={8}
+              />
+            </label>
+            <button type="submit" className="submit-btn" disabled={authLoading}>
+              {authLoading ? 'Входим...' : 'Войти'}
+            </button>
+          </form>
+          <p className="auth-hint">
+            Нет аккаунта?{' '}
+            <button type="button" className="link-like" onClick={() => startAuthFlow('register')}>
+              Зарегистрироваться
+            </button>
+          </p>
+        </>
+      )
+    }
+
+    if (authStage === 'register') {
+      return (
+        <>
+          <h2>Регистрация</h2>
+          <form onSubmit={handleRegisterSubmit}>
+            <label>
+              <span className="label-text">E-mail</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="your@email.com"
+                required
+              />
+            </label>
+            <label>
+              <span className="label-text">Имя (необязательно)</span>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder="Как к тебе обращаться"
+              />
+            </label>
+            <label>
+              <span className="label-text">Пароль</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Минимум 8 символов"
+                required
+                minLength={8}
+              />
+            </label>
+            <button type="submit" className="submit-btn" disabled={authLoading}>
+              {authLoading ? 'Отправляем код...' : 'Зарегистрироваться'}
+            </button>
+          </form>
+          <p className="auth-hint">
+            Уже есть аккаунт?{' '}
+            <button type="button" className="link-like" onClick={() => startAuthFlow('login')}>
+              Войти
+            </button>
+          </p>
+        </>
+      )
+    }
+
+    if (authStage === 'verify') {
+      return (
+        <>
+          <h2>Подтверждение почты</h2>
+          <p className="verify-info">
+            Введите 6-значный код, который пришёл на{' '}
+            <strong>{(pendingEmail ?? email) || 'указанный email'}</strong>
+          </p>
+          <form onSubmit={handleVerifySubmit} className="verify-form">
+            <label>
+              <span className="label-text">Код подтверждения</span>
+              <input
+                type="text"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                minLength={6}
+                maxLength={6}
+                placeholder="000000"
+                required
+                className="code-input"
+              />
+            </label>
+            <div className="verify-actions">
+              <button type="submit" disabled={authLoading} className="submit-btn">
+                {authLoading ? 'Проверяем...' : 'Подтвердить'}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => startAuthFlow('register')}
+              >
+                Изменить данные
+              </button>
+            </div>
+          </form>
+        </>
+      )
+    }
+
+    return null
+  }
+
   const hydrateProfile = async (tokenValue: string) => {
     try {
       const [profile, snapshot] = await Promise.all([
@@ -105,7 +316,7 @@ function App() {
     if (!token) {
       setUser(null)
       setDashboard(null)
-      setViewMode('auth')
+      setViewMode('landing')
       return
     }
     void hydrateProfile(token).then(() => setViewMode('dashboard'))
@@ -173,7 +384,8 @@ function App() {
 
   const handleRunSuite = () => {
     if (!user) {
-      setViewMode('auth')
+      setViewMode('landing')
+      startAuthFlow('login')
       setAuthError('Сначала авторизуйся, чтобы отправлять задания.')
       return
     }
@@ -188,48 +400,14 @@ function App() {
 
   const isFileActive = (fileId: string) => fileId === activeFile?.id
 
-  const handleRequestCode = async (event: FormEvent) => {
-    event.preventDefault()
-    setAuthLoading(true)
-    setAuthError(null)
-    try {
-      await requestLoginCode({ email, fullName })
-      setAuthStage('verify')
-      appendLog(`Код отправлен на ${email}`, 'success')
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Ошибка отправки кода')
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
-  const handleVerifyCode = async (event: FormEvent) => {
-    event.preventDefault()
-    setAuthLoading(true)
-    setAuthError(null)
-    try {
-      const response = await verifyLoginCode({ email, code })
-      window.localStorage.setItem(TOKEN_STORAGE_KEY, response.access_token)
-      setToken(response.access_token)
-      setUser(response.user)
-      setCode('')
-      setAuthStage('request')
-      setViewMode('dashboard')
-      appendLog('Авторизация успешна', 'success')
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Ошибка авторизации')
-    } finally {
-      setAuthLoading(false)
-    }
-  }
-
   const handleLogout = () => {
     window.localStorage.removeItem(TOKEN_STORAGE_KEY)
     setToken(null)
     setUser(null)
     setDashboard(null)
-    setViewMode('auth')
-    setAuthStage('request')
+    setViewMode('landing')
+    setAuthStage('landing')
+    resetAuthStatus()
   }
 
   if (viewMode === 'admin' && token) {
@@ -239,161 +417,73 @@ function App() {
   if (viewMode !== 'ide') {
     return (
       <div className="screen">
-        {viewMode === 'auth' && (
-          <section className="auth-screen">
-            <div className="auth-header">
-              <div className="auth-logo">
-                <svg
-                  width="64"
-                  height="64"
-                  viewBox="0 0 64 64"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect
-                    width="64"
-                    height="64"
-                    rx="16"
-                    fill="url(#gradient)"
-                    opacity="0.2"
-                  />
-                  <path
-                    d="M32 16L42 26L32 36L22 26L32 16Z"
-                    stroke="url(#gradient)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M22 38L32 48L42 38"
-                    stroke="url(#gradient)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <defs>
-                    <linearGradient id="gradient" x1="0" y1="0" x2="64" y2="64">
-                      <stop offset="0%" stopColor="#7f5af0" />
-                      <stop offset="100%" stopColor="#9251f7" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
-              <h1>Добро пожаловать в VibeCode IDE</h1>
-              <p className="subtitle">
-                Получи одноразовый код подтверждения и мы подготовим личный кабинет.
-              </p>
-            </div>
-
-            <div className="auth-card">
-              {authStage === 'request' && (
-                <form onSubmit={handleRequestCode}>
-                  <label>
-                    <span className="label-text">E-mail</span>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="your@email.com"
-                      required
-                    />
-                  </label>
-                  <label>
-                    <span className="label-text">Имя (необязательно)</span>
-                    <input
-                      type="text"
-                      value={fullName}
-                      onChange={(event) => setFullName(event.target.value)}
-                      placeholder="Как к тебе обращаться"
-                    />
-                  </label>
-                  <button type="submit" disabled={authLoading} className="submit-btn">
-                    {authLoading ? (
-                      <>
-                        <span className="spinner"></span>
-                        Отправляем...
-                      </>
-                    ) : (
-                      <>
-                        <span>Получить код</span>
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M7.5 15L12.5 10L7.5 5"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </>
-                    )}
+        {viewMode === 'landing' && (
+          <section className="landing-screen">
+            <header className="landing-hero">
+              <div>
+                <p className="eyebrow">VibeCode Jam IDE</p>
+                <h1>Создавай резюме и код в облаке</h1>
+                <p className="subtitle">
+                  Авторизуйся и получи доступ к IDE, опроснику для резюме и административной панели
+                  для вопросов.
+                </p>
+                <div className="landing-actions">
+                  <button type="button" className="primary" onClick={() => startAuthFlow('login')}>
+                    Авторизоваться
                   </button>
-                </form>
-              )}
-
-              {authStage === 'verify' && (
-                <form onSubmit={handleVerifyCode} className="verify-form">
-                  <div className="verify-header">
-                    <div className="verify-icon">✉️</div>
-                    <p className="verify-info">
-                      Введите код, который пришёл на <strong>{email || 'почту'}</strong>
-                    </p>
-                  </div>
-                  <label>
-                    <span className="label-text">6-значный код</span>
-                    <input
-                      type="text"
-                      value={code}
-                      onChange={(event) => setCode(event.target.value)}
-                      minLength={6}
-                      maxLength={6}
-                      placeholder="000000"
-                      required
-                      className="code-input"
-                    />
-                  </label>
-                  <div className="verify-actions">
-                    <button type="submit" disabled={authLoading} className="submit-btn">
-                      {authLoading ? (
-                        <>
-                          <span className="spinner"></span>
-                          Проверяем...
-                        </>
-                      ) : (
-                        'Подтвердить'
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => setAuthStage('request')}
-                    >
-                      Запросить код ещё раз
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {authError && (
-                <div className="auth-error">
-                  <span className="error-icon">⚠️</span>
-                  <span>{authError}</span>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => startAuthFlow('register')}
+                  >
+                    Зарегистрироваться
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+              <div className="landing-preview">
+                <div className="preview-card">
+                  <p>⚡ Код запускается в Docker окружении</p>
+                </div>
+                <div className="preview-card">
+                  <p>📋 Отвечай на вопросы и улучшай резюме</p>
+                </div>
+                <div className="preview-card">
+                  <p>🔐 Подтверждение через код на почте</p>
+                </div>
+              </div>
+            </header>
+
+            {authStage !== 'landing' && (
+              <div className="auth-modal" onClick={closeAuthModal}>
+                <div
+                  className="auth-card"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                  }}
+                >
+                  <button type="button" className="modal-close" onClick={closeAuthModal}>
+                    ×
+                  </button>
+                  {renderAuthForm()}
+                  {authInfo && <div className="auth-info">{authInfo}</div>}
+                  {authError && (
+                    <div className="auth-error">
+                      <span className="error-icon">⚠️</span>
+                      <span>{authError}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         )}
 
         {viewMode === 'dashboard' && user && (
           <section className="dashboard-screen">
             <div>
-              <p className="eyebrow">Аккаунт подтверждён</p>
+              <p className="eyebrow">
+                {user.is_verified ? 'Аккаунт подтверждён' : 'Email не подтвержден'}
+              </p>
               <h1>Привет, {user.full_name ?? user.email}!</h1>
               <p className="subtitle">
                 Мы сохранили твои настройки и готовы запустить редактор, когда захочешь.

@@ -9,6 +9,7 @@ class UserRead(BaseModel):
     email: EmailStr
     full_name: str | None
     is_admin: bool
+    is_verified: bool
     created_at: datetime
     last_login_at: datetime | None
 

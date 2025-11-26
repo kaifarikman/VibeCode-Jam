@@ -1,11 +1,18 @@
 from .answer import AnswerCreate, AnswerRead, AnswerWithQuestion
-from .auth import AuthCodeRequest, AuthCodeVerify, TokenResponse, AuthSuccessResponse
+from .auth import (
+    AuthCodeVerify,
+    AuthLoginRequest,
+    AuthRegisterRequest,
+    AuthSuccessResponse,
+    TokenResponse,
+)
 from .question import QuestionCreate, QuestionRead, QuestionUpdate
 from .user import DashboardSnapshot, UserRead
 
 __all__ = [
-    'AuthCodeRequest',
     'AuthCodeVerify',
+    'AuthRegisterRequest',
+    'AuthLoginRequest',
     'TokenResponse',
     'AuthSuccessResponse',
     'UserRead',

@@ -1,7 +1,9 @@
-import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
+import hashlib
+
+from passlib.context import CryptContext
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,26 +11,44 @@ from ..models import LoginCode, User
 
 
 CODE_TTL_MINUTES = 10
+pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
 
 
 def _hash_code(code: str) -> str:
     return hashlib.sha256(code.encode('utf-8')).hexdigest()
 
 
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    return pwd_context.verify(password, password_hash)
+
+
 def generate_code() -> str:
     return f'{secrets.randbelow(1_000_000):06d}'
 
 
-async def upsert_user(session: AsyncSession, email: str, full_name: str | None) -> User:
+async def register_user(
+    session: AsyncSession, email: str, password: str, full_name: str | None
+) -> User:
     user = await session.scalar(select(User).where(User.email == email))
     if user:
+        if user.is_verified:
+            raise ValueError('USER_ALREADY_VERIFIED')
+        user.password_hash = hash_password(password)
         if full_name and user.full_name != full_name:
             user.full_name = full_name
-            await session.flush()
-        return user
-
-    user = User(email=email, full_name=full_name)
-    session.add(user)
+        user.is_verified = False
+    else:
+        user = User(
+            email=email,
+            full_name=full_name,
+            password_hash=hash_password(password),
+            is_verified=False,
+        )
+        session.add(user)
     await session.flush()
     return user
 
@@ -66,6 +86,17 @@ async def verify_code(session: AsyncSession, email: str, code: str) -> User | No
         .where(LoginCode.id == login_code.id)
         .values(consumed_at=datetime.now(tz=timezone.utc))
     )
+    user.is_verified = True
+    await session.flush()
+    return user
+
+
+async def authenticate_user(session: AsyncSession, email: str, password: str) -> User | None:
+    user = await session.scalar(select(User).where(User.email == email))
+    if not user or not user.is_verified:
+        return None
+    if not verify_password(password, user.password_hash):
+        return None
     user.last_login_at = datetime.now(tz=timezone.utc)
     await session.flush()
     return user

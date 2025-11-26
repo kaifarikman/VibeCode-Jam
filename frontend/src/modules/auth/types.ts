@@ -1,8 +1,14 @@
-export type AuthStage = 'request' | 'verify'
+export type AuthStage = 'landing' | 'login' | 'register' | 'verify'
 
-export type RequestCodePayload = {
+export type RegisterPayload = {
   email: string
   fullName?: string
+  password: string
+}
+
+export type LoginPayload = {
+  email: string
+  password: string
 }
 
 export type VerifyCodePayload = {
@@ -15,6 +21,7 @@ export type UserProfile = {
   email: string
   full_name: string | null
   is_admin: boolean
+  is_verified: boolean
   created_at: string
   last_login_at: string | null
 }
