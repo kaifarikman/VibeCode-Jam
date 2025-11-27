@@ -3,13 +3,13 @@
 import random
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_session
 from ..dependencies.auth import get_current_user
-from ..models import Task, TaskSolution, User, Vacancy
+from ..models import Task, TaskSolution, User, Vacancy, UserContestTasks
 from ..schemas import TaskRead, TaskTestsForSubmit
 
 router = APIRouter(prefix='/tasks', tags=['tasks'])
@@ -21,13 +21,50 @@ async def get_contest_tasks(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Получить 3 задачи разной сложности для алгоритмического контеста"""
+    """Получить 3 задачи разной сложности для алгоритмического контеста
+    
+    Задачи генерируются один раз при первом входе пользователя на контест
+    и привязываются к пользователю. При последующих запросах возвращаются
+    те же самые задачи.
+    """
     vacancy = await session.get(Vacancy, vacancy_id)
     if not vacancy:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Vacancy not found'
         )
     
+    # Проверяем, есть ли уже привязанные задачи для этого пользователя и вакансии
+    existing_binding = await session.scalar(
+        select(UserContestTasks).where(
+            UserContestTasks.user_id == current_user.id,
+            UserContestTasks.vacancy_id == vacancy_id
+        )
+    )
+    
+    if existing_binding:
+        # Если задачи уже привязаны, возвращаем их в том же порядке
+        task_ids = existing_binding.task_ids
+        tasks = []
+        for task_id in task_ids:
+            task = await session.get(Task, task_id)
+            if task:
+                tasks.append(task)
+        
+        # Если некоторые задачи были удалены, возвращаем только существующие
+        if len(tasks) < len(task_ids):
+            # Обновляем привязку, убирая удаленные задачи
+            existing_binding.task_ids = [task.id for task in tasks]
+            await session.commit()
+        
+        # Конвертируем в TaskRead (без закрытых тестов)
+        result = []
+        for task in tasks:
+            task_read = TaskRead.from_orm(task)
+            result.append(task_read)
+        
+        return result
+    
+    # Если задач еще нет, генерируем новые
     # Получаем задачи, привязанные к этой вакансии, или все задачи, если нет привязки
     stmt = select(Task).where(
         (Task.vacancy_id == vacancy_id) | (Task.vacancy_id.is_(None))
@@ -64,9 +101,22 @@ async def get_contest_tasks(
     # Перемешиваем порядок
     random.shuffle(selected_tasks)
     
+    # Берем ровно 3 задачи
+    final_tasks = selected_tasks[:3]
+    task_ids = [task.id for task in final_tasks]
+    
+    # Создаем привязку задач к пользователю
+    user_contest_tasks = UserContestTasks(
+        user_id=current_user.id,
+        vacancy_id=vacancy_id,
+        task_ids=task_ids
+    )
+    session.add(user_contest_tasks)
+    await session.commit()
+    
     # Конвертируем в TaskRead (без закрытых тестов)
     result = []
-    for task in selected_tasks[:3]:
+    for task in final_tasks:
         task_read = TaskRead.from_orm(task)
         result.append(task_read)
     
@@ -119,4 +169,38 @@ async def get_solved_tasks(
     )
     result = await session.scalars(stmt)
     return list(result.all())
+
+
+@router.get('/{task_id}/last-solution')
+async def get_last_solution(
+    task_id: uuid.UUID,
+    vacancy_id: uuid.UUID | None = Query(None, description='ID вакансии для фильтрации'),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Получить последнее решение задачи пользователя"""
+    # Строим запрос
+    stmt = select(TaskSolution).where(
+        TaskSolution.user_id == current_user.id,
+        TaskSolution.task_id == task_id,
+    )
+    
+    # Если указан vacancy_id, фильтруем по нему
+    if vacancy_id:
+        stmt = stmt.where(TaskSolution.vacancy_id == vacancy_id)
+    
+    # Получаем последнее решение (по updated_at)
+    stmt = stmt.order_by(desc(TaskSolution.updated_at)).limit(1)
+    solution = await session.scalar(stmt)
+    
+    if not solution:
+        return {'solution_code': None, 'language': None}
+    
+    return {
+        'solution_code': solution.solution_code,
+        'language': solution.language,
+        'status': solution.status,
+        'verdict': solution.verdict,
+        'updated_at': solution.updated_at.isoformat(),
+    }
 

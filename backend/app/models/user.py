@@ -39,5 +39,11 @@ class User(Base):
     task_solutions: Mapped[list['TaskSolution']] = relationship(
         back_populates='user', cascade='all, delete-orphan'
     )
+    hint_usages: Mapped[list['HintUsage']] = relationship(
+        back_populates='user', cascade='all, delete-orphan'
+    )
+    contest_tasks: Mapped[list['UserContestTasks']] = relationship(
+        back_populates='user', cascade='all, delete-orphan'
+    )
 
 

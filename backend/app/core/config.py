@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     smtp_tls: bool = False
 
     executor_service_url: str = 'http://localhost:8001'
+    ml_service_url: str = 'http://localhost:8002/api/v1'
+    ml_service_timeout: int = 30000
 
     model_config = SettingsConfigDict(
         env_file=os.getenv('ENV_FILE', '.env'),

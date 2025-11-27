@@ -35,6 +35,9 @@ class Vacancy(Base):
     tasks: Mapped[list['Task']] = relationship(
         back_populates='vacancy', cascade='all, delete-orphan'
     )
+    user_contest_tasks: Mapped[list['UserContestTasks']] = relationship(
+        back_populates='vacancy', cascade='all, delete-orphan'
+    )
 
 
 class Application(Base):

@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, JSON, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,9 @@ class Task(Base):
     hidden_tests: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )  # JSON массив закрытых тестов [{input: "...", output: "..."}, ...]
+    hints: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True
+    )  # JSON массив подсказок [{level: "surface", content: "...", penalty: 5.0}, ...]
     vacancy_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey('vacancies.id', ondelete='SET NULL'), nullable=True
     )  # Привязка к вакансии (опционально)
@@ -43,4 +46,5 @@ class Task(Base):
 
     vacancy: Mapped['Vacancy | None'] = relationship(back_populates='tasks')
     solutions: Mapped[list['TaskSolution']] = relationship(back_populates='task')
+    hint_usages: Mapped[list['HintUsage']] = relationship(back_populates='task')
 

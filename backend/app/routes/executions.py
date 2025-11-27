@@ -143,14 +143,28 @@ async def execution_callback(
         completed_str = callback_data['completed_at'].replace('Z', '+00:00')
         execution.completed_at = datetime.fromisoformat(completed_str)
 
-    # Если это Submit и задача решена успешно, сохраняем решение
-    verdict = execution.result.get('verdict') if execution.result else None
+    # Если это Submit, сохраняем решение (независимо от результата)
+    # Получаем вердикт из result (может быть dict или уже объект)
+    result_dict = execution.result if isinstance(execution.result, dict) else (execution.result.model_dump() if hasattr(execution.result, 'model_dump') else {})
+    verdict = result_dict.get('verdict') if result_dict else None
+    
+    # Получаем test_results
+    test_results = result_dict.get('test_results') if result_dict else None
+    
+    # Если вердикт не установлен, но есть test_results, определяем вердикт по результатам тестов
+    if not verdict and test_results:
+        # Проверяем, все ли тесты прошли
+        all_passed = all(tr.get('passed', False) for tr in test_results if isinstance(tr, dict))
+        if all_passed and len(test_results) > 0:
+            verdict = 'ACCEPTED'
+        elif len(test_results) > 0:
+            verdict = 'WRONG ANSWER'
+    
     if (
         execution.is_submit
         and execution.task_id
         and execution.status == 'completed'
         and execution.result
-        and verdict == 'ACCEPTED'
     ):
         # Проверяем, есть ли уже решение для этой задачи
         existing_solution = await session.scalar(
@@ -167,19 +181,25 @@ async def execution_callback(
             # Берем первый файл (обычно solution.py, solution.ts и т.д.)
             solution_code = list(execution.files.values())[0] if execution.files else ''
         
+        # Определяем статус и вердикт
+        is_accepted = verdict == 'ACCEPTED'
+        new_status = 'solved' if is_accepted else 'attempted'
+        new_verdict = verdict if verdict else None
+        
         if existing_solution:
-            # Если задача уже решена, не меняем статус, только обновляем код и результаты
-            if existing_solution.status == 'solved':
-                # Задача уже решена - обновляем только код и результаты, но не меняем статус
+            # Обновляем существующее решение
+            # Если задача уже была решена, не меняем статус на attempted
+            if existing_solution.status == 'solved' and not is_accepted:
+                # Задача была решена, но новое решение не прошло - обновляем только код и результаты
                 existing_solution.solution_code = solution_code
-                existing_solution.test_results = execution.result.get('test_results')
+                existing_solution.test_results = test_results
                 existing_solution.execution_id = execution.id
             else:
-                # Задача была attempted, теперь решена - обновляем статус
-                existing_solution.status = 'solved'
-                existing_solution.verdict = 'ACCEPTED'
+                # Обновляем статус и вердикт
+                existing_solution.status = new_status
+                existing_solution.verdict = new_verdict
                 existing_solution.solution_code = solution_code
-                existing_solution.test_results = execution.result.get('test_results')
+                existing_solution.test_results = test_results
                 existing_solution.execution_id = execution.id
         else:
             # Создаем новое решение
@@ -187,11 +207,11 @@ async def execution_callback(
                 user_id=execution.user_id,
                 task_id=execution.task_id,
                 vacancy_id=execution.vacancy_id,
-                status='solved',
-                verdict='ACCEPTED',
+                status=new_status,
+                verdict=new_verdict,
                 solution_code=solution_code,
                 language=execution.language,
-                test_results=execution.result.get('test_results'),
+                test_results=test_results,
                 execution_id=execution.id,
             )
             session.add(solution)

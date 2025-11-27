@@ -63,3 +63,30 @@ export async function fetchSolvedTasks(
   return (await response.json()) as string[]
 }
 
+export interface LastSolution {
+  solution_code: string | null
+  language: string | null
+  status?: string
+  verdict?: string | null
+  updated_at?: string
+}
+
+export async function fetchLastSolution(
+  token: string,
+  taskId: string,
+  vacancyId?: string,
+): Promise<LastSolution> {
+  const url = new URL(buildUrl(`/tasks/${taskId}/last-solution`))
+  if (vacancyId) {
+    url.searchParams.append('vacancy_id', vacancyId)
+  }
+  const response = await fetch(url.toString(), {
+    headers: getAuthHeaders(token),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Ошибка загрузки решения' }))
+    throw new Error(error.detail || 'Не удалось загрузить решение')
+  }
+  return (await response.json()) as LastSolution
+}
+

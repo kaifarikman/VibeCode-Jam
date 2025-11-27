@@ -6,11 +6,12 @@ import type { UserProfile } from '../modules/auth/types'
 import { codeSamples, getSolutionFileName } from '../modules/ide/codeSamples'
 import { fetchQuestions } from '../modules/questions/api'
 import { getRandomTasks } from '../modules/vacancies/api'
-import { fetchContestTasks, fetchSolvedTasks, fetchTaskTestsForSubmit } from '../modules/tasks/api'
+import { fetchContestTasks, fetchSolvedTasks, fetchTaskTestsForSubmit, fetchLastSolution } from '../modules/tasks/api'
 import type { Question } from '../modules/questions/types'
 import type { Task } from '../modules/tasks/types'
 import { createExecution, getExecution } from '../modules/executions/api'
 import type { Execution } from '../modules/executions/types'
+import { requestHint, getUsedHints, getAvailableHints, type HintResponse } from '../modules/hints/api'
 import '../App.css'
 
 const TOKEN_STORAGE_KEY = 'vibecode_token'
@@ -32,6 +33,13 @@ export function IdePage() {
     return saved || 'python'
   })
   const [solutionCode, setSolutionCode] = useState<string>(() => {
+    // В контестном режиме всегда начинаем с пустого шаблона
+    // Проверяем, есть ли contest_vacancy_id в URL
+    const urlParams = new URLSearchParams(window.location.search)
+    const hasContest = urlParams.get('contest_vacancy_id') || window.location.pathname.includes('/contest/')
+    if (hasContest) {
+      return codeSamples[selectedLanguage] || codeSamples.python
+    }
     const saved = window.localStorage.getItem(`solution_${selectedLanguage}`)
     return saved || codeSamples[selectedLanguage] || codeSamples.python
   })
@@ -44,6 +52,11 @@ export function IdePage() {
   const [executionLoading, setExecutionLoading] = useState(false)
   const [runMode, setRunMode] = useState<'run' | 'submit'>('run') // 'run' для открытых тестов, 'submit' для всех
   const [activeTab, setActiveTab] = useState<'condition' | 'solution' | 'results'>('condition')
+  const [usedHints, setUsedHints] = useState<Set<string>>(new Set()) // Использованные подсказки для текущей задачи
+  const [availableHints, setAvailableHints] = useState<string[]>([]) // Доступные подсказки
+  const [hintLoading, setHintLoading] = useState(false)
+  const [currentHint, setCurrentHint] = useState<HintResponse | null>(null) // Текущая открытая подсказка
+  const [totalPenalty, setTotalPenalty] = useState(0) // Общий штраф за подсказки
 
   useEffect(() => {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
@@ -67,6 +80,44 @@ export function IdePage() {
       void loadQuestions(token)
     }
   }, [navigate, vacancyId, taskIdsParam, contestVacancyId])
+
+  // Загружаем подсказки и последнее решение при смене задачи
+  useEffect(() => {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
+    if (token && selectedTaskId && isContestMode) {
+      void loadHintsForTask(token, selectedTaskId)
+      setCurrentHint(null) // Сбрасываем текущую подсказку при смене задачи
+      
+      // Сбрасываем текущее выполнение при смене задачи
+      setCurrentExecution(null)
+      
+      // Переключаемся на вкладку "Условие" при смене задачи
+      setActiveTab('condition')
+      
+      // Загружаем последнее решение для этой задачи
+      const loadLastSolution = async () => {
+        try {
+          const lastSolution = await fetchLastSolution(token, selectedTaskId, contestVacancyId || undefined)
+          if (lastSolution.solution_code && lastSolution.language) {
+            // Если есть сохраненное решение, загружаем его
+            setSolutionCode(lastSolution.solution_code)
+            // Если язык отличается, обновляем язык
+            if (lastSolution.language !== selectedLanguage && ['python', 'typescript', 'go', 'java'].includes(lastSolution.language)) {
+              setSelectedLanguage(lastSolution.language as SupportedLanguage)
+            }
+          } else {
+            // Если решения нет, используем шаблон
+            setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
+          }
+        } catch (error) {
+          console.error('Failed to load last solution:', error)
+          // В случае ошибки используем шаблон
+          setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
+        }
+      }
+      void loadLastSolution()
+    }
+  }, [selectedTaskId, isContestMode, selectedLanguage, contestVacancyId])
 
   const loadUser = async (token: string) => {
     try {
@@ -94,6 +145,8 @@ export function IdePage() {
   const loadContestTasks = async (token: string, vacancyId: string) => {
     try {
       setIsContestMode(true)
+      // Сбрасываем код на шаблон при входе в контестный режим
+      setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
       const contestTasks = await fetchContestTasks(token, vacancyId)
       setTasks(contestTasks)
       if (contestTasks.length > 0) {
@@ -110,6 +163,53 @@ export function IdePage() {
       }
     } catch (error) {
       console.error('Failed to load contest tasks:', error)
+    }
+  }
+
+  // Загрузить использованные и доступные подсказки для задачи
+  const loadHintsForTask = async (token: string, taskId: string) => {
+    if (!isContestMode || !taskId) return
+    
+    try {
+      const [used, available] = await Promise.all([
+        getUsedHints(token, taskId),
+        getAvailableHints(token, taskId),
+      ])
+      setUsedHints(new Set(used))
+      setAvailableHints(available)
+      
+      // Вычисляем общий штраф
+      const penalties: Record<string, number> = { surface: 5, medium: 15, deep: 30 }
+      const penalty = used.reduce((sum, level) => sum + (penalties[level] || 0), 0)
+      setTotalPenalty(penalty)
+    } catch (error) {
+      console.error('Failed to load hints:', error)
+    }
+  }
+
+  // Запросить подсказку
+  const handleRequestHint = async (hintLevel: 'surface' | 'medium' | 'deep') => {
+    if (!selectedTaskId || !user || hintLoading) return
+    
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
+    if (!token) return
+    
+    setHintLoading(true)
+    try {
+      const response = await requestHint(token, {
+        task_id: selectedTaskId,
+        hint_level: hintLevel,
+      })
+      
+      setCurrentHint(response)
+      setUsedHints(prev => new Set([...prev, hintLevel]))
+      setAvailableHints(prev => prev.filter(level => level !== hintLevel))
+      setTotalPenalty(prev => prev + response.penalty)
+    } catch (error) {
+      console.error('Failed to request hint:', error)
+      alert(error instanceof Error ? error.message : 'Не удалось получить подсказку')
+    } finally {
+      setHintLoading(false)
     }
   }
 
@@ -155,19 +255,25 @@ export function IdePage() {
   }
 
   useEffect(() => {
-    if (solutionCode) {
+    // В контестном режиме не сохраняем код в localStorage
+    if (!isContestMode && solutionCode) {
       window.localStorage.setItem(`solution_${selectedLanguage}`, solutionCode)
     }
-  }, [solutionCode, selectedLanguage])
+  }, [solutionCode, selectedLanguage, isContestMode])
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(`solution_${selectedLanguage}`)
-    if (saved) {
-      setSolutionCode(saved)
-    } else {
+    // В контестном режиме всегда используем шаблон, не загружаем из localStorage
+    if (isContestMode) {
       setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
+    } else {
+      const saved = window.localStorage.getItem(`solution_${selectedLanguage}`)
+      if (saved) {
+        setSolutionCode(saved)
+      } else {
+        setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
+      }
     }
-  }, [selectedLanguage])
+  }, [selectedLanguage, isContestMode])
 
   const selectedTask = useMemo(() => {
     if (!selectedTaskId) return null
@@ -546,6 +652,68 @@ export function IdePage() {
                               ))}
                             </div>
                           )}
+                        
+                        {/* Блок подсказок - всегда показываем в режиме контеста */}
+                        {isContestMode && selectedTaskId && (
+                          <div className="hints-section">
+                            <div className="hints-header">
+                              <h3>Подсказки</h3>
+                              <div className="hints-score">
+                                <span className="max-score">Максимум: 100 баллов</span>
+                                {totalPenalty > 0 && (
+                                  <span className="penalty">Штраф: -{totalPenalty} баллов</span>
+                                )}
+                                <span className="final-score">
+                                  Итого: {Math.max(0, 100 - totalPenalty)} баллов
+                                </span>
+                              </div>
+                            </div>
+                            <div className="hints-buttons">
+                              <button
+                                type="button"
+                                className={`hint-button ${usedHints.has('surface') ? 'used' : ''} ${availableHints.includes('surface') ? 'available' : ''}`}
+                                onClick={() => handleRequestHint('surface')}
+                                disabled={hintLoading || usedHints.has('surface')}
+                                title={usedHints.has('surface') ? 'Подсказка уже использована (-5 баллов)' : 'Поверхностная подсказка (-5 баллов)'}
+                              >
+                                {usedHints.has('surface') ? '✓ Использована' : 'Подсказка 1'}
+                                <span className="hint-penalty">-5</span>
+                              </button>
+                              <button
+                                type="button"
+                                className={`hint-button ${usedHints.has('medium') ? 'used' : ''} ${availableHints.includes('medium') ? 'available' : ''}`}
+                                onClick={() => handleRequestHint('medium')}
+                                disabled={hintLoading || usedHints.has('medium')}
+                                title={usedHints.has('medium') ? 'Подсказка уже использована (-15 баллов)' : 'Средняя подсказка (-15 баллов)'}
+                              >
+                                {usedHints.has('medium') ? '✓ Использована' : 'Подсказка 2'}
+                                <span className="hint-penalty">-15</span>
+                              </button>
+                              <button
+                                type="button"
+                                className={`hint-button ${usedHints.has('deep') ? 'used' : ''} ${availableHints.includes('deep') ? 'available' : ''}`}
+                                onClick={() => handleRequestHint('deep')}
+                                disabled={hintLoading || usedHints.has('deep')}
+                                title={usedHints.has('deep') ? 'Подсказка уже использована (-30 баллов)' : 'Глубокая подсказка (-30 баллов)'}
+                              >
+                                {usedHints.has('deep') ? '✓ Использована' : 'Подсказка 3'}
+                                <span className="hint-penalty">-30</span>
+                              </button>
+                            </div>
+                            {currentHint && (
+                              <div className="hint-content">
+                                <div className="hint-content-header">
+                                  <strong>Подсказка:</strong>
+                                  <span className="hint-penalty-badge">-{currentHint.penalty} баллов</span>
+                                </div>
+                                <div className="hint-text">{currentHint.content}</div>
+                                <div className="hint-footer">
+                                  Осталось подсказок: {currentHint.remaining_hints}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </>
                   ) : (
