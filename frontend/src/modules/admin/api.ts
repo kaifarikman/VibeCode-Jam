@@ -125,7 +125,7 @@ export async function deleteVacancy(token: string, id: string): Promise<void> {
 }
 
 // Tasks API
-import type { Task, TaskCreate, TaskUpdate } from '../tasks/types'
+import type { Task, TaskCreate, TaskGenerateRequest, TaskUpdate } from '../tasks/types'
 
 export async function fetchTasks(token: string): Promise<Task[]> {
   const response = await fetch(buildUrl('/admin/tasks'), {
@@ -135,6 +135,33 @@ export async function fetchTasks(token: string): Promise<Task[]> {
     throw new Error('Не удалось загрузить задачи')
   }
   return (await response.json()) as Task[]
+}
+
+export async function generateTask(
+  token: string,
+  data: TaskGenerateRequest,
+): Promise<Task> {
+  // Убираем vacancy_id из запроса, если он пустой
+  const requestData: any = {
+    difficulty: data.difficulty,
+  }
+  if (data.topic) {
+    requestData.topic = data.topic
+  }
+  if (data.vacancy_id) {
+    requestData.vacancy_id = data.vacancy_id
+  }
+  
+  const response = await fetch(buildUrl('/admin/tasks/generate'), {
+    method: 'POST',
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(requestData),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Ошибка генерации задачи' }))
+    throw new Error(error.detail || 'Не удалось сгенерировать задачу через ML')
+  }
+  return (await response.json()) as Task
 }
 
 export async function createTask(

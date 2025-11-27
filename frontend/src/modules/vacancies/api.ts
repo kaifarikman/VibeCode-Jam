@@ -16,17 +16,43 @@ export async function fetchVacancies(
   language?: string,
   grade?: string,
 ): Promise<Vacancy[]> {
-  const params = new URLSearchParams()
-  if (language) params.append('language', language)
-  if (grade) params.append('grade', grade)
+  try {
+    const params = new URLSearchParams()
+    if (language) params.append('language', language)
+    if (grade) params.append('grade', grade)
 
-  const response = await fetch(buildUrl(`/vacancies?${params.toString()}`), {
-    headers: getAuthHeaders(token),
-  })
-  if (!response.ok) {
-    throw new Error('Не удалось загрузить вакансии')
+    const url = params.toString() 
+      ? buildUrl(`/vacancies?${params.toString()}`)
+      : buildUrl('/vacancies')
+    
+    const response = await fetch(url, {
+      headers: getAuthHeaders(token),
+    })
+    
+    if (!response.ok) {
+      let errorMessage = 'Не удалось загрузить вакансии'
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.detail || errorData.message || errorMessage
+      } catch {
+        // Если не удалось распарсить JSON, используем статус код
+        if (response.status === 401) {
+          errorMessage = 'Требуется авторизация'
+        } else if (response.status === 500) {
+          errorMessage = 'Ошибка сервера при загрузке вакансий'
+        }
+      }
+      throw new Error(errorMessage)
+    }
+    
+    const data = await response.json()
+    return data as Vacancy[]
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error('Неожиданная ошибка при загрузке вакансий')
   }
-  return (await response.json()) as Vacancy[]
 }
 
 export async function fetchVacancy(token: string, id: string): Promise<Vacancy> {
@@ -43,21 +69,42 @@ export async function applyToVacancy(
   token: string,
   vacancyId: string,
 ): Promise<{ application: Application; isNew: boolean }> {
-  const response = await fetch(buildUrl(`/vacancies/${vacancyId}/apply`), {
-    method: 'POST',
-    headers: getAuthHeaders(token),
-  })
-  
-  // Принимаем как 200 (уже существует), так и 201 (создана новая)
-  if (response.status === 200 || response.status === 201) {
-    const application = (await response.json()) as Application
-    const isNew = response.status === 201
-    return { application, isNew }
+  try {
+    const response = await fetch(buildUrl(`/vacancies/${vacancyId}/apply`), {
+      method: 'POST',
+      headers: getAuthHeaders(token),
+    })
+    
+    // Принимаем как 200 (уже существует), так и 201 (создана новая)
+    if (response.status === 200 || response.status === 201) {
+      const application = (await response.json()) as Application
+      const isNew = response.status === 201
+      return { application, isNew }
+    }
+    
+    // Обрабатываем ошибки
+    let errorMessage = 'Не удалось подать заявку'
+    try {
+      const errorData = await response.json()
+      errorMessage = errorData.detail || errorData.message || errorMessage
+    } catch {
+      if (response.status === 400) {
+        errorMessage = 'Неверный запрос'
+      } else if (response.status === 401) {
+        errorMessage = 'Требуется авторизация'
+      } else if (response.status === 404) {
+        errorMessage = 'Вакансия не найдена'
+      } else if (response.status === 500) {
+        errorMessage = 'Ошибка сервера при подаче заявки'
+      }
+    }
+    throw new Error(errorMessage)
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error('Неожиданная ошибка при подаче заявки')
   }
-  
-  // Обрабатываем ошибки
-  const error = await response.json().catch(() => ({ detail: 'Ошибка подачи заявки' }))
-  throw new Error(error.detail || 'Не удалось подать заявку')
 }
 
 export async function getMyApplications(token: string): Promise<Application[]> {
@@ -74,14 +121,39 @@ export async function getSurveyQuestions(
   token: string,
   vacancyId: string,
 ): Promise<Question[]> {
-  const response = await fetch(buildUrl(`/vacancies/${vacancyId}/survey-questions`), {
-    headers: getAuthHeaders(token),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Ошибка загрузки вопросов' }))
-    throw new Error(error.detail || 'Не удалось загрузить вопросы')
+  try {
+    const response = await fetch(buildUrl(`/vacancies/${vacancyId}/survey-questions`), {
+      headers: getAuthHeaders(token),
+    })
+    
+    if (!response.ok) {
+      let errorMessage = 'Не удалось загрузить вопросы'
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.detail || errorData.message || errorMessage
+      } catch {
+        // Если не удалось распарсить JSON, используем статус код
+        if (response.status === 404) {
+          errorMessage = 'Вакансия не найдена'
+        } else if (response.status === 400) {
+          errorMessage = 'Нет вопросов для этой вакансии'
+        } else if (response.status === 401) {
+          errorMessage = 'Требуется авторизация'
+        } else if (response.status === 500) {
+          errorMessage = 'Ошибка сервера при загрузке вопросов'
+        }
+      }
+      throw new Error(errorMessage)
+    }
+    
+    const data = await response.json()
+    return data as Question[]
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error('Неожиданная ошибка при загрузке вопросов')
   }
-  return (await response.json()) as Question[]
 }
 
 export async function updateApplicationStatus(

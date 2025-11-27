@@ -6,7 +6,7 @@ import type { UserProfile } from '../modules/auth/types'
 import { codeSamples, getSolutionFileName } from '../modules/ide/codeSamples'
 import { fetchQuestions } from '../modules/questions/api'
 import { getRandomTasks } from '../modules/vacancies/api'
-import { fetchContestTasks, fetchSolvedTasks, fetchTaskTestsForSubmit, fetchLastSolution } from '../modules/tasks/api'
+import { fetchContestTasks, fetchSolvedTasks, fetchTaskTestsForSubmit, fetchLastSolution, fetchContestCompletionStatus } from '../modules/tasks/api'
 import type { Question } from '../modules/questions/types'
 import type { Task } from '../modules/tasks/types'
 import { createExecution, getExecution } from '../modules/executions/api'
@@ -22,7 +22,7 @@ type SupportedLanguage = 'python' | 'typescript' | 'go' | 'java'
 export function IdePage() {
   const navigate = useNavigate()
   const params = useParams()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const vacancyId = searchParams.get('vacancy_id')
   const taskIdsParam = searchParams.get('task_ids')
   const contestVacancyId = params.vacancyId || searchParams.get('contest_vacancy_id') || null
@@ -97,7 +97,7 @@ export function IdePage() {
       // Загружаем последнее решение для этой задачи
       const loadLastSolution = async () => {
         try {
-          const lastSolution = await fetchLastSolution(token, selectedTaskId, contestVacancyId || undefined)
+           const lastSolution = await fetchLastSolution(token, selectedTaskId, contestVacancyId ?? undefined)
           if (lastSolution.solution_code && lastSolution.language) {
             // Если есть сохраненное решение, загружаем его
             setSolutionCode(lastSolution.solution_code)
@@ -350,7 +350,7 @@ export function IdePage() {
         timeout: 30,
         test_cases: testCases,
         task_id: isContestMode && selectedTaskId ? selectedTaskId : undefined,
-        vacancy_id: contestVacancyId || null,
+        vacancy_id: contestVacancyId ? contestVacancyId : undefined,
         is_submit: runMode === 'submit',
       })
 
@@ -394,23 +394,48 @@ export function IdePage() {
         if (execution.status === 'completed') {
           setExecutionLoading(false)
           
-          // Если это Submit и задача решена, обновляем список решенных задач
+          // Если это Submit, всегда перезагружаем список решенных задач
+          // Это гарантирует, что мы получим актуальное состояние с сервера
           if (
             currentRunMode === 'submit' &&
-            execution.result?.verdict === 'ACCEPTED' &&
             currentTaskId &&
             currentVacancyId
           ) {
-            // Добавляем задачу в список решенных локально
-            setSolvedTaskIds(prev => new Set([...prev, currentTaskId]))
-            
-            // Перезагружаем список решенных задач с сервера для синхронизации
-            try {
-              const solvedIds = await fetchSolvedTasks(token, currentVacancyId)
-              setSolvedTaskIds(new Set(solvedIds))
-            } catch (error) {
-              console.error('Failed to reload solved tasks:', error)
-            }
+            // Небольшая задержка, чтобы backend успел сохранить решение
+            setTimeout(async () => {
+              try {
+                const solvedIds = await fetchSolvedTasks(token, currentVacancyId)
+                setSolvedTaskIds(new Set(solvedIds))
+                console.log('Reloaded solved tasks:', solvedIds)
+                
+                // Если задача решена (по вердикту или по списку с сервера), добавляем локально
+                const isAccepted = execution.result?.verdict === 'ACCEPTED' || solvedIds.includes(currentTaskId)
+                if (isAccepted) {
+                  setSolvedTaskIds(prev => new Set([...prev, currentTaskId]))
+                }
+                
+                // Проверяем, все ли задачи решены
+                if (currentVacancyId) {
+                  try {
+                    const completionStatus = await fetchContestCompletionStatus(token, currentVacancyId)
+                    if (completionStatus.all_solved) {
+                      // Все задачи решены - редирект на страницу завершения
+                      setTimeout(() => {
+                        navigate(`/contest-complete?vacancy_id=${currentVacancyId}`)
+                      }, 1000)
+                    }
+                  } catch (error) {
+                    console.error('Failed to check completion status:', error)
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to reload solved tasks:', error)
+                // Если не удалось загрузить с сервера, но вердикт ACCEPTED, добавляем локально
+                if (execution.result?.verdict === 'ACCEPTED') {
+                  setSolvedTaskIds(prev => new Set([...prev, currentTaskId]))
+                }
+              }
+            }, 500) // Задержка 500ms для гарантии сохранения на backend
           }
           
           return
@@ -462,7 +487,7 @@ export function IdePage() {
                 <p>{user.full_name ?? user.email}</p>
                 <span>{user.email}</span>
               </div>
-              <button type="button" onClick={() => navigate('/dashboard')}>
+              <button type="button" onClick={() => navigate('/home')}>
                 Назад
               </button>
             </div>

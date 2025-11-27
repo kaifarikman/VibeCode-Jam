@@ -46,19 +46,42 @@ export function VacancyDetailPage() {
     }
   }
 
-  const handleStartTest = () => {
-    // Проверяем, не пройден ли уже тест
-    if (application && application.status !== 'pending') {
-      setError('Вы уже прошли тест по этой вакансии. Повторное прохождение невозможно.')
-      return
-    }
-    
-    if (vacancyId) {
+  const handleStartTest = async () => {
+    const token = window.localStorage.getItem('vibecode_token')
+    if (!token || !vacancyId) return
+
+    try {
+      // Если заявки нет, создаем её перед началом опроса
+      if (!application) {
+        const { applyToVacancy } = await import('../modules/vacancies/api')
+        await applyToVacancy(token, vacancyId)
+        // После создания заявки перезагружаем данные
+        await loadData(token, vacancyId)
+      }
+      
+      // Проверяем, не пройден ли уже опрос
+      if (application && application.status !== 'pending') {
+        setError('Вы уже прошли опрос по этой вакансии. Повторное прохождение невозможно.')
+        return
+      }
+      
+      // Блокируем доступ, если заявка в рассмотрении, принята или отклонена
+      if (application && ['under_review', 'accepted', 'rejected'].includes(application.status)) {
+        setError('Доступ к тестам закрыт. Заявка находится на рассмотрении или уже обработана.')
+        return
+      }
+      
+      // Переходим к опросу
       navigate(`/survey?vacancy_id=${vacancyId}`)
+    } catch (err) {
+      console.error('Error starting test:', err)
+      setError(err instanceof Error ? err.message : 'Ошибка при начале теста')
     }
   }
   
   const isTestCompleted = application && application.status !== 'pending'
+  const isBlocked = application && ['under_review', 'accepted', 'rejected'].includes(application.status)
+  const isSurveyCompleted = application && application.status === 'survey_completed'
 
   if (loading) {
     return (
@@ -110,14 +133,48 @@ export function VacancyDetailPage() {
             </div>
 
             <div className="vacancy-detail-actions">
-              {isTestCompleted ? (
+              {isBlocked ? (
+                <div className="test-blocked-message">
+                  <p>
+                    {application?.status === 'under_review' && '⏳ Заявка находится на рассмотрении'}
+                    {application?.status === 'accepted' && '✅ Ваша заявка принята! Мы свяжемся с вами.'}
+                    {application?.status === 'rejected' && '❌ К сожалению, ваша заявка была отклонена'}
+                  </p>
+                  <p className="test-status-info">
+                    Доступ к тестам закрыт. Вы можете только просмотреть информацию о вакансии.
+                  </p>
+                </div>
+              ) : isSurveyCompleted ? (
+                <div className="test-completed-message">
+                  <p>✅ Опрос завершен</p>
+                  <p className="test-status">
+                    Статус: Опрос завершен
+                  </p>
+                  <button
+                    type="button"
+                    className="start-test-btn"
+                    onClick={() => vacancyId && navigate(`/contest/${vacancyId}`)}
+                  >
+                    Решить алгоритмический контест
+                  </button>
+                </div>
+              ) : isTestCompleted ? (
                 <div className="test-completed-message">
                   <p>✅ Тест уже пройден</p>
                   <p className="test-status">
-                    Статус: {application?.status === 'survey_completed' ? 'Прошел тест' :
-                             application?.status === 'algo_test_completed' ? 'Прошел алготест' :
+                    Статус: {application?.status === 'survey_completed' ? 'Опрос завершен' :
+                             application?.status === 'algo_test_completed' ? 'Алготест завершен' :
                              application?.status === 'final_verdict' ? 'Получен вердикт' : 'Завершено'}
                   </p>
+                  {application?.status === 'survey_completed' && (
+                    <button
+                      type="button"
+                      className="start-test-btn"
+                      onClick={() => vacancyId && navigate(`/contest/${vacancyId}`)}
+                    >
+                      Решить алгоритмический контест
+                    </button>
+                  )}
                 </div>
               ) : (
                 <button

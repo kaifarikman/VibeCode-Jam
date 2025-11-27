@@ -10,6 +10,8 @@ import { SurveyCompletePage } from './pages/SurveyCompletePage'
 import { DashboardPage } from './pages/DashboardPage'
 import { IdePage } from './pages/IdePage'
 import { AdminPage } from './pages/AdminPage'
+import { ModeratorPage } from './pages/ModeratorPage'
+import { ContestCompletePage } from './pages/ContestCompletePage'
 import './App.css'
 
 const TOKEN_STORAGE_KEY = 'vibecode_token'
@@ -19,9 +21,11 @@ function App() {
   const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
 
   useEffect(() => {
-    // Если нет токена и пользователь не на landing и не на admin, перенаправляем на главную
+    // Если нет токена и пользователь не на landing, admin или moderator, перенаправляем на главную
     const currentPath = window.location.pathname
-    if (!token && currentPath !== '/' && currentPath !== '/admin') {
+    // Разрешаем доступ к публичным страницам без токена
+    const publicPaths = ['/', '/admin', '/moderator']
+    if (!token && !publicPaths.includes(currentPath)) {
       navigate('/')
     }
   }, [token, navigate])
@@ -66,8 +70,16 @@ function App() {
         element={token ? <IdePage /> : <Navigate to="/" replace />}
       />
       <Route
+        path="/contest-complete"
+        element={token ? <ContestCompletePage /> : <Navigate to="/" replace />}
+      />
+      <Route
         path="/admin"
         element={<AdminPage />}
+      />
+      <Route
+        path="/moderator"
+        element={<ModeratorPage />}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

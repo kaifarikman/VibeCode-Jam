@@ -148,6 +148,8 @@ async def create_task(
     open_tests: list[dict] | None = None,
     hidden_tests: list[dict] | None = None,
     vacancy_id: UUID | None = None,
+    hints: list[dict] | dict | None = None,
+    canonical_solution: str | None = None,
 ) -> Task:
     """Создать новую задачу"""
     task = Task(
@@ -158,6 +160,8 @@ async def create_task(
         open_tests=json.dumps(open_tests) if open_tests else None,
         hidden_tests=json.dumps(hidden_tests) if hidden_tests else None,
         vacancy_id=vacancy_id,
+        hints=hints,  # hints уже должен быть dict/list, сохраняется как JSON
+        canonical_solution=canonical_solution,
     )
     session.add(task)
     await session.flush()
@@ -174,6 +178,7 @@ async def update_task(
     open_tests: list[dict] | None = None,
     hidden_tests: list[dict] | None = None,
     vacancy_id: UUID | None = None,
+    canonical_solution: str | None = None,
 ) -> Task | None:
     """Обновить задачу"""
     task = await session.get(Task, task_id)
@@ -194,6 +199,8 @@ async def update_task(
         task.hidden_tests = json.dumps(hidden_tests) if hidden_tests else None
     if vacancy_id is not None:
         task.vacancy_id = vacancy_id
+    if canonical_solution is not None:
+        task.canonical_solution = canonical_solution
 
     await session.flush()
     return task

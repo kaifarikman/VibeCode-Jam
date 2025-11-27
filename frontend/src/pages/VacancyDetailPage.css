@@ -161,6 +161,28 @@
   color: rgba(76, 175, 80, 0.8) !important;
 }
 
+.test-blocked-message {
+  padding: 24px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.test-blocked-message p:first-child {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffc107;
+}
+
+.test-status-info {
+  margin: 8px 0 0 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .back-btn {
   padding: 8px 16px;
   background: transparent;

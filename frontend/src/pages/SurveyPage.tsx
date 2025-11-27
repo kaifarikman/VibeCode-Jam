@@ -34,13 +34,24 @@ export function SurveyPage() {
   const checkAndLoadSurvey = async (token: string) => {
     try {
       setLoading(true)
+      setError(null)
+      
       // Проверяем статус заявки
       const applications = await getMyApplications(token)
       const application = applications.find(app => app.vacancy_id === vacancyId)
       
       if (application && application.status !== 'pending') {
-        // Тест уже пройден, перенаправляем на страницу деталей вакансии
-        setError('Вы уже прошли тест по этой вакансии. Повторное прохождение невозможно.')
+        // Опрос уже пройден, перенаправляем на страницу деталей вакансии
+        setError('Вы уже прошли опрос по этой вакансии. Повторное прохождение невозможно.')
+        setTimeout(() => {
+          navigate(`/vacancy/${vacancyId}`)
+        }, 2000)
+        return
+      }
+      
+      // Дополнительная проверка: если статус survey_completed или выше, блокируем
+      if (application && ['survey_completed', 'algo_test_completed', 'under_review', 'accepted', 'rejected'].includes(application.status)) {
+        setError('Опрос уже завершен. Повторное прохождение невозможно.')
         setTimeout(() => {
           navigate(`/vacancy/${vacancyId}`)
         }, 2000)
@@ -50,7 +61,15 @@ export function SurveyPage() {
       // Загружаем вопросы для опроса
       await loadQuestions(token)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки данных')
+      console.error('Error in checkAndLoadSurvey:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка загрузки данных'
+      setError(errorMessage)
+      // Если ошибка критическая, можно перенаправить на страницу вакансии
+      if (errorMessage.includes('не найдена') || errorMessage.includes('404')) {
+        setTimeout(() => {
+          navigate(`/vacancy/${vacancyId}`)
+        }, 2000)
+      }
     } finally {
       setLoading(false)
     }
@@ -59,11 +78,28 @@ export function SurveyPage() {
   const loadQuestions = async (token: string) => {
     try {
       setLoading(true)
+      setError(null)
+      
       // Получаем случайные вопросы для опроса (до 10)
       const data = await getSurveyQuestions(token, vacancyId)
+      
+      if (!data || data.length === 0) {
+        setError('Нет вопросов для этой вакансии')
+        return
+      }
+      
       setQuestions(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки вопросов')
+      console.error('Error in loadQuestions:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка загрузки вопросов'
+      setError(errorMessage)
+      
+      // Если нет вопросов, перенаправляем обратно
+      if (errorMessage.includes('Нет вопросов') || errorMessage.includes('400')) {
+        setTimeout(() => {
+          navigate(`/vacancy/${vacancyId}`)
+        }, 2000)
+      }
     } finally {
       setLoading(false)
     }

@@ -13,6 +13,10 @@ from ..models import User
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f'{settings.api_v1_str}/auth/verify')
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl=f'{settings.api_v1_str}/auth/verify',
+    auto_error=False
+)
 
 
 async def get_current_user(
@@ -42,5 +46,32 @@ async def get_current_user(
             detail='Email is not verified',
         )
     return user
+
+
+async def get_current_user_optional(
+    token: str | None = Depends(oauth2_scheme_optional),
+    session: AsyncSession = Depends(get_session),
+) -> User | None:
+    """Опциональная авторизация - возвращает User или None"""
+    if not token:
+        return None
+    
+    try:
+        payload = decode_access_token(token)
+        user_id_str = payload.get('sub')
+        if not user_id_str:
+            return None
+
+        try:
+            user_id = uuid.UUID(str(user_id_str))
+        except (ValueError, TypeError):
+            return None
+
+        user = await session.scalar(select(User).where(User.id == user_id))
+        if not user or not user.is_verified:
+            return None
+        return user
+    except (ValueError, HTTPException):
+        return None
 
 

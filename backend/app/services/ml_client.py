@@ -1,11 +1,13 @@
 """Клиент для взаимодействия с ML микросервисом"""
 
+import logging
 import httpx
 from typing import Any
 
 from app.core.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class MLClient:
@@ -15,23 +17,32 @@ class MLClient:
         self.base_url = settings.ml_service_url
         self.timeout = settings.ml_service_timeout / 1000  # Конвертируем мс в секунды
     
-    async def generate_task(self, difficulty: str, topic: str | None = None) -> dict[str, Any]:
+    async def generate_task(self, difficulty: str, topic: str | None = None, use_mock: bool = False) -> dict[str, Any]:
         """Генерирует задачу через ML сервис
         
         Args:
             difficulty: Уровень сложности (easy, medium, hard)
             topic: Опциональная тема задачи
+            use_mock: Если True, использует mock endpoint вместо реальной генерации
             
         Returns:
             dict: Задача с полями title, description, examples, hidden_tests, hints
         """
+        endpoint = '/generate-task-mock' if use_mock else '/generate-task'
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f'{self.base_url}/generate-task',
-                json={'difficulty': difficulty, 'topic': topic} if topic else {'difficulty': difficulty}
-            )
-            response.raise_for_status()
-            return response.json()
+            try:
+                response = await client.post(
+                    f'{self.base_url}{endpoint}',
+                    json={'difficulty': difficulty, 'topic': topic} if topic else {'difficulty': difficulty}
+                )
+                response.raise_for_status()
+                return response.json()
+            except (httpx.RequestError, httpx.HTTPStatusError) as e:
+                # Если не удалось подключиться к реальному эндпоинту, пробуем mock
+                if not use_mock:
+                    logger.warning(f'Failed to generate task via ML service: {e}. Trying mock endpoint...')
+                    return await self.generate_task(difficulty, topic, use_mock=True)
+                raise
     
     async def evaluate_code(
         self,
@@ -64,47 +75,6 @@ class MLClient:
             )
             response.raise_for_status()
             return response.json()
-    
-    async def calculate_score(
-        self,
-        difficulty: str,
-        tests_passed: int,
-        total_tests: int,
-        time_taken_seconds: float,
-        code_quality_score: float,
-        communication_score: float,
-        hints_used: list[str]
-    ) -> float:
-        """Рассчитывает финальный балл с учетом подсказок
-        
-        Args:
-            difficulty: Сложность задачи
-            tests_passed: Количество пройденных тестов
-            total_tests: Общее количество тестов
-            time_taken_seconds: Время выполнения в секундах
-            code_quality_score: Оценка качества кода (0-100)
-            communication_score: Оценка коммуникации (0-100)
-            hints_used: Список использованных подсказок (surface, medium, deep)
-            
-        Returns:
-            float: Финальный балл (0.0-100.0)
-        """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f'{self.base_url}/score',
-                json={
-                    'difficulty': difficulty,
-                    'tests_passed': tests_passed,
-                    'total_tests': total_tests,
-                    'time_taken_seconds': time_taken_seconds,
-                    'code_quality_score': code_quality_score,
-                    'communication_score': communication_score,
-                    'hints_used': hints_used
-                }
-            )
-            response.raise_for_status()
-            result = response.json()
-            return result.get('final_score', 0.0)
     
     async def check_anti_cheat(self, code: str, problem_description: str) -> dict[str, Any]:
         """Проверяет код на плагиат и AI-генерацию

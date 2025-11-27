@@ -152,3 +152,33 @@ export async function requestLoginCode(payload: { email: string }) {
   return response.json()
 }
 
+export async function moderatorLogin(payload: LoginPayload) {
+  const response = await fetch(buildUrl('/moderator-auth/login'), {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Ошибка входа' }))
+    
+    if (response.status === 422 && errorData.detail) {
+      if (Array.isArray(errorData.detail)) {
+        const messages = errorData.detail.map((err: any) => {
+          const field = err.loc?.[err.loc.length - 1] || 'поле'
+          const msg = err.msg || 'Ошибка валидации'
+          return `${field === 'body' ? '' : field + ': '}${msg}`
+        })
+        throw new Error(messages.join('. ') || 'Ошибка валидации данных')
+      }
+      throw new Error(errorData.detail || 'Ошибка валидации данных')
+    }
+    
+    const errorMessage = errorData.detail || 
+      (response.status === 400 ? 'Неверный email или пароль' :
+       response.status === 500 ? 'Ошибка сервера. Попробуйте позже' :
+       'Ошибка входа')
+    throw new Error(errorMessage)
+  }
+  return (await response.json()) as AuthSuccessResponse
+}
+

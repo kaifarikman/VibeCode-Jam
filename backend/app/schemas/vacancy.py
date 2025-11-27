@@ -53,6 +53,7 @@ class ApplicationRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     vacancy: VacancyRead | None = None  # Информация о вакансии
+    user: dict | None = None  # Информация о пользователе (для модератора)
 
     class Config:
         from_attributes = True

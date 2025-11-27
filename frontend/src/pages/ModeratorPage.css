@@ -1,0 +1,68 @@
+/* Moderator Page - Dark Purple Theme */
+.moderator-page-loading,
+.moderator-login-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.moderator-login-container {
+  background: rgba(30, 30, 50, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  border-radius: 16px;
+  padding: 48px;
+  max-width: 450px;
+  width: 100%;
+  box-shadow: 0 8px 30px rgba(138, 43, 226, 0.3);
+}
+
+.moderator-login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.moderator-login-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+  background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.moderator-login-header p {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+.moderator-login-footer {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.btn-link {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.btn-link:hover {
+  color: #9370db;
+}
+
+.loading-spinner {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
+}
+

@@ -162,13 +162,67 @@ async def get_solved_tasks(
     session: AsyncSession = Depends(get_session),
 ):
     """Получить список ID решенных задач для пользователя по вакансии"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     stmt = select(TaskSolution.task_id).where(
         TaskSolution.user_id == current_user.id,
         TaskSolution.vacancy_id == vacancy_id,
         TaskSolution.status == 'solved',
     )
     result = await session.scalars(stmt)
-    return list(result.all())
+    solved_ids = list(result.all())
+    
+    logger.info(
+        f"User {current_user.id} solved tasks for vacancy {vacancy_id}: {solved_ids}"
+    )
+    
+    return solved_ids
+
+
+@router.get('/contest/{vacancy_id}/completion-status')
+async def get_contest_completion_status(
+    vacancy_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Проверить статус завершения контеста - все ли задачи решены"""
+    # Получаем привязанные задачи
+    binding = await session.scalar(
+        select(UserContestTasks).where(
+            UserContestTasks.user_id == current_user.id,
+            UserContestTasks.vacancy_id == vacancy_id
+        )
+    )
+    
+    if not binding:
+        return {
+            'all_solved': False,
+            'total_tasks': 0,
+            'solved_tasks': 0,
+            'task_ids': []
+        }
+    
+    expected_task_ids = set(binding.task_ids)
+    
+    # Получаем решенные задачи
+    solved_solutions = await session.scalars(
+        select(TaskSolution).where(
+            TaskSolution.user_id == current_user.id,
+            TaskSolution.vacancy_id == vacancy_id,
+            TaskSolution.status == 'solved'
+        )
+    )
+    solved_task_ids = {sol.task_id for sol in solved_solutions.all()}
+    
+    all_solved = expected_task_ids.issubset(solved_task_ids)
+    
+    return {
+        'all_solved': all_solved,
+        'total_tasks': len(expected_task_ids),
+        'solved_tasks': len(solved_task_ids.intersection(expected_task_ids)),
+        'task_ids': list(expected_task_ids)
+    }
 
 
 @router.get('/{task_id}/last-solution')

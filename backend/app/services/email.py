@@ -35,4 +35,22 @@ class EmailService:
             timeout=10,  # Таймаут 10 секунд
         )
 
+    async def send_email(self, to_email: str, subject: str, body: str) -> None:
+        """Отправить произвольное email сообщение"""
+        message = EmailMessage()
+        message['From'] = self._settings.smtp_from
+        message['To'] = to_email
+        message['Subject'] = subject
+        message.set_content(body.strip())
+
+        await aiosmtplib.send(
+            message,
+            hostname=self._settings.smtp_host,
+            port=self._settings.smtp_port,
+            start_tls=self._settings.smtp_tls,
+            username=self._settings.smtp_user or None,
+            password=self._settings.smtp_password or None,
+            timeout=10,
+        )
+
 

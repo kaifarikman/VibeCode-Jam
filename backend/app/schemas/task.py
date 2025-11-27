@@ -21,10 +21,18 @@ class TaskBase(BaseModel):
     open_tests: list[TestCase] | None = Field(None, description='Открытые тесты (видимые пользователю)')
     hidden_tests: list[TestCase] | None = Field(None, description='Закрытые тесты (для финальной проверки)')
     vacancy_id: uuid.UUID | None = Field(None, description='ID вакансии, к которой привязана задача')
+    canonical_solution: str | None = Field(None, description='Эталонное решение задачи (Python)')
 
 
 class TaskCreate(TaskBase):
     pass
+
+
+class TaskGenerateRequest(BaseModel):
+    """Запрос на генерацию задачи через ML"""
+    difficulty: str = Field(..., description='Уровень сложности: easy, medium, hard')
+    topic: str | None = Field(None, max_length=100, description='Тема/категория задачи (опционально)')
+    vacancy_id: uuid.UUID | None = Field(None, description='ID вакансии, к которой привязать задачу (опционально)')
 
 
 class TaskUpdate(BaseModel):
@@ -35,6 +43,7 @@ class TaskUpdate(BaseModel):
     open_tests: list[TestCase] | None = Field(None, description='Открытые тесты')
     hidden_tests: list[TestCase] | None = Field(None, description='Закрытые тесты')
     vacancy_id: uuid.UUID | None = Field(None, description='ID вакансии')
+    canonical_solution: str | None = Field(None, description='Эталонное решение задачи (Python)')
 
 
 class TaskRead(BaseModel):
@@ -111,6 +120,7 @@ class TaskTestsForSubmit(BaseModel):
 class TaskReadWithHidden(TaskRead):
     """Версия TaskRead с закрытыми тестами (для админки)"""
     hidden_tests: list[TestCase] | None
+    canonical_solution: str | None = None
 
     @classmethod
     def from_orm(cls, task):
@@ -124,6 +134,7 @@ class TaskReadWithHidden(TaskRead):
             'vacancy_id': task.vacancy_id,
             'created_at': task.created_at,
             'updated_at': task.updated_at,
+            'canonical_solution': task.canonical_solution,
         }
         
         # Парсим JSON тесты

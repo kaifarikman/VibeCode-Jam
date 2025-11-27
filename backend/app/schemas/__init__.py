@@ -9,7 +9,8 @@ from .auth import (
 )
 from .execution import ExecutionRead, ExecutionRequest, ExecutionResult, ExecutionStatus
 from .question import QuestionCreate, QuestionRead, QuestionUpdate
-from .task import TaskCreate, TaskRead, TaskReadWithHidden, TaskTestsForSubmit, TaskUpdate
+from .scoring import ScoringRequest, ScoringResponse
+from .task import TaskCreate, TaskGenerateRequest, TaskRead, TaskReadWithHidden, TaskTestsForSubmit, TaskUpdate
 from .task_solution import TaskSolutionCreate, TaskSolutionRead
 from .user import DashboardSnapshot, UserRead
 from .vacancy import (
@@ -34,6 +35,7 @@ __all__ = [
     'QuestionUpdate',
     'QuestionRead',
     'TaskCreate',
+    'TaskGenerateRequest',
     'TaskUpdate',
     'TaskRead',
     'TaskReadWithHidden',
@@ -53,4 +55,6 @@ __all__ = [
     'ApplicationStatusUpdate',
     'TaskSolutionCreate',
     'TaskSolutionRead',
+    'ScoringRequest',
+    'ScoringResponse',
 ]

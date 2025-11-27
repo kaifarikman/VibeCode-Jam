@@ -1138,6 +1138,102 @@ body {
   background: var(--cf-bg-secondary);
 }
 
+/* Contest Complete Page */
+.contest-complete-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.contest-complete-card {
+  background: rgba(30, 30, 50, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  border-radius: 16px;
+  padding: 48px;
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(138, 43, 226, 0.3);
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: #ffffff;
+  font-weight: bold;
+  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.4);
+}
+
+.contest-complete-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 16px 0;
+  background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.contest-complete-message {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 24px 0;
+  line-height: 1.6;
+}
+
+.contest-complete-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 32px 0;
+  text-align: left;
+  display: inline-block;
+}
+
+.contest-complete-steps li {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 8px 0;
+  margin: 0;
+}
+
+.contest-complete-info {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+  margin: 0 0 32px 0;
+}
+
+.contest-complete-button {
+  background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
+  border: none;
+  color: #ffffff;
+  padding: 14px 32px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+}
+
+.contest-complete-button:hover {
+  background: linear-gradient(135deg, #9d3ef5 0%, #a082e0 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(138, 43, 226, 0.6);
+}
+
 /* Survey */
 .survey-prompt {
   background: var(--cf-bg-secondary);

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moderator Panel - FutureCareer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #1a1a2e;
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(30, 30, 50, 0.9);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .auth-section {
+            background: rgba(30, 30, 50, 0.9);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .auth-form {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .auth-form input {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(40, 40, 60, 0.8);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .auth-form button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .applications-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .application-card {
+            background: rgba(30, 30, 50, 0.9);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 12px;
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .application-card:hover {
+            border-color: #8a2be2;
+            transform: translateY(-2px);
+        }
+
+        .application-card h3 {
+            margin: 0 0 8px 0;
+            color: #ffffff;
+        }
+
+        .application-meta {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: rgba(30, 30, 50, 0.95);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 1000px;
+            width: 100%;
+            margin-top: 40px;
+            margin-bottom: 40px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 32px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section h3 {
+            margin: 0 0 16px 0;
+            color: #8a2be2;
+            font-size: 20px;
+        }
+
+        .task-solution, .survey-answer {
+            background: rgba(40, 40, 60, 0.6);
+            border: 1px solid rgba(138, 43, 226, 0.2);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            color: #d4d4d4;
+        }
+
+        .decision-section {
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 1px solid rgba(138, 43, 226, 0.3);
+        }
+
+        .decision-buttons {
+            display: flex;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .btn-accept {
+            flex: 1;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn-reject {
+            flex: 1;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #f44336 0%, #e53935 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .comment-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(40, 40, 60, 0.8);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            margin-top: 12px;
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 48px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .empty {
+            text-align: center;
+            padding: 48px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Moderator Panel</h1>
+            <div id="authStatus"></div>
+        </div>
+
+        <div id="authSection" class="auth-section">
+            <div class="auth-form">
+                <input type="password" id="moderatorToken" placeholder="Введите токен модератора">
+                <button onclick="authenticate()">Войти</button>
+            </div>
+        </div>
+
+        <div id="applicationsSection" style="display: none;">
+            <h2 style="margin-bottom: 24px;">Заявки для модерации</h2>
+            <div id="applicationsList" class="applications-list"></div>
+        </div>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Детали заявки</h2>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+        const MODERATOR_SERVICE_URL = 'http://localhost:8003';
+        let moderatorToken = null;
+
+        async function authenticate() {
+            const token = document.getElementById('moderatorToken').value;
+            if (!token) {
+                alert('Введите токен');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${MODERATOR_SERVICE_URL}/auth`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+
+                if (response.ok) {
+                    moderatorToken = token;
+                    document.getElementById('authSection').style.display = 'none';
+                    document.getElementById('applicationsSection').style.display = 'block';
+                    document.getElementById('authStatus').textContent = '✓ Авторизован';
+                    loadApplications();
+                } else {
+                    alert('Неверный токен');
+                }
+            } catch (error) {
+                alert('Ошибка авторизации: ' + error.message);
+            }
+        }
+
+        async function loadApplications() {
+            const listEl = document.getElementById('applicationsList');
+            listEl.innerHTML = '<div class="loading">Загрузка...</div>';
+
+            try {
+                const response = await fetch(`${MODERATOR_SERVICE_URL}/applications?moderator_token=${moderatorToken}`);
+                if (!response.ok) throw new Error('Ошибка загрузки');
+
+                const applications = await response.json();
+                
+                if (applications.length === 0) {
+                    listEl.innerHTML = '<div class="empty">Нет заявок для модерации</div>';
+                    return;
+                }
+
+                listEl.innerHTML = applications.map(app => `
+                    <div class="application-card" onclick="openApplication('${app.id}')">
+                        <h3>${app.vacancy?.title || 'Неизвестная вакансия'}</h3>
+                        <p>Кандидат: ${app.user?.email || 'Неизвестно'}</p>
+                        <div class="application-meta">
+                            <span>Статус: ${app.status}</span>
+                            <span>Оценка: ${app.ml_score ? app.ml_score.toFixed(2) : 'N/A'}</span>
+                            <span>Создана: ${new Date(app.created_at).toLocaleDateString('ru-RU')}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listEl.innerHTML = `<div class="empty">Ошибка: ${error.message}</div>`;
+            }
+        }
+
+        async function openApplication(applicationId) {
+            const modal = document.getElementById('modal');
+            const modalBody = document.getElementById('modalBody');
+            modal.classList.add('active');
+            modalBody.innerHTML = '<div class="loading">Загрузка...</div>';
+
+            try {
+                const response = await fetch(`${MODERATOR_SERVICE_URL}/applications/${applicationId}?moderator_token=${moderatorToken}`);
+                if (!response.ok) throw new Error('Ошибка загрузки');
+
+                const data = await response.json();
+                const app = data.application;
+
+                modalBody.innerHTML = `
+                    <div class="section">
+                        <h3>Информация о кандидате</h3>
+                        <p><strong>Имя:</strong> ${app.user_full_name || 'Не указано'}</p>
+                        <p><strong>Email:</strong> ${app.user_email}</p>
+                        <p><strong>Вакансия:</strong> ${app.vacancy_title} (${app.vacancy_position})</p>
+                        <p><strong>Оценка ML:</strong> ${app.ml_score ? app.ml_score.toFixed(2) : 'N/A'}</p>
+                    </div>
+
+                    <div class="section">
+                        <h3>Решения алгоритмических задач (${data.task_solutions.length})</h3>
+                        ${data.task_solutions.map((sol, idx) => `
+                            <div class="task-solution">
+                                <h4>Задача ${idx + 1}: ${sol.task_title}</h4>
+                                <p><strong>Статус:</strong> ${sol.status === 'solved' ? '✓ Решена' : 'Попытка'}</p>
+                                <p><strong>Вердикт:</strong> ${sol.verdict || 'N/A'}</p>
+                                <p><strong>Язык:</strong> ${sol.language}</p>
+                                <div class="code-block">${escapeHtml(sol.solution_code || 'Нет кода')}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="section">
+                        <h3>Ответы на вопросы опроса (${data.survey_answers.length})</h3>
+                        ${data.survey_answers.map((ans, idx) => `
+                            <div class="survey-answer">
+                                <p><strong>Вопрос ${idx + 1}:</strong> ${ans.question_text}</p>
+                                <p><strong>Ответ:</strong> ${ans.answer_text}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="decision-section">
+                        <h3>Решение по заявке</h3>
+                        <textarea id="decisionComment" class="comment-input" placeholder="Комментарий (опционально)"></textarea>
+                        <div class="decision-buttons">
+                            <button class="btn-accept" onclick="decideApplication('${applicationId}', 'accepted')">
+                                ✓ Принять
+                            </button>
+                            <button class="btn-reject" onclick="decideApplication('${applicationId}', 'rejected')">
+                                ✗ Отклонить
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                modalBody.innerHTML = `<div class="empty">Ошибка: ${error.message}</div>`;
+            }
+        }
+
+        async function decideApplication(applicationId, decision) {
+            const comment = document.getElementById('decisionComment').value;
+            
+            if (!confirm(`Вы уверены, что хотите ${decision === 'accepted' ? 'принять' : 'отклонить'} эту заявку?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${MODERATOR_SERVICE_URL}/applications/${applicationId}/decide?moderator_token=${moderatorToken}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ decision, comment })
+                });
+
+                if (response.ok) {
+                    alert(`Заявка ${decision === 'accepted' ? 'принята' : 'отклонена'}. Письмо отправлено кандидату.`);
+                    closeModal();
+                    loadApplications();
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Закрытие модального окна по клику вне его
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
+

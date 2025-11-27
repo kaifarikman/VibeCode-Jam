@@ -11,8 +11,9 @@ sys.path.insert(0, str(backend_path))
 import json
 
 from app.database import async_session_factory
-from app.models import Question, Task, User, Vacancy
+from app.models import Question, Task, User, Vacancy, Moderator
 from app.services.auth import hash_password
+from app.services.moderator_auth import create_moderator
 from sqlalchemy import select
 
 
@@ -685,12 +686,34 @@ async def create_tasks():
         print(f'   Всего: {len(TASKS_DATA)}')
 
 
+async def create_default_moderator():
+    """Создает дефолтного модератора"""
+    async with async_session_factory() as session:
+        try:
+            moderator = await create_moderator(
+                session,
+                email='moderator@example.com',
+                password='moderator'
+            )
+            await session.commit()
+            print('✅ Модератор создан:')
+            print(f'   Email: moderator@example.com')
+            print(f'   Password: moderator')
+        except ValueError as e:
+            print(f'⚠️  Модератор уже существует: {e}')
+        except Exception as e:
+            print(f'❌ Ошибка создания модератора: {e}')
+            await session.rollback()
+
+
 async def main():
     """Основная функция"""
     print('🚀 Инициализация данных...\n')
     
     try:
         await create_admin_user()
+        print()
+        await create_default_moderator()
         print()
         await create_vacancies()
         print()

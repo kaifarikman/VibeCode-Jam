@@ -13,8 +13,10 @@ class Task(BaseModel):
     examples: List[Example]
     constraints: Optional[List[str]] = None
     difficulty: Literal["easy", "medium", "hard"]
-    hidden_tests: Optional[List[str]] = None
+    hidden_tests: Optional[List[str]] = None  # Только inputs (для обратной совместимости)
+    hidden_tests_full: Optional[List[Dict[str, str]]] = None  # Полные тесты с input и output
     hints: Optional[List[Dict[str, Any]]] = None  # Подсказки трех уровней
+    canonical_solution: Optional[str] = None  # Эталонное решение на Python
 
 class TaskGenerationRequest(BaseModel):
     difficulty: Literal["easy", "medium", "hard"]

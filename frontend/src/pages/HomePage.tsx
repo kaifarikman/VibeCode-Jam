@@ -105,7 +105,18 @@ export function HomePage() {
                   >
                     {app.vacancy && (
                       <>
-                        <div onClick={() => navigate(`/vacancy/${app.vacancy_id}`)}>
+                        <div 
+                          onClick={() => {
+                            // Блокируем доступ к вакансии, если она в рассмотрении, принята или отклонена
+                            if (['under_review', 'accepted', 'rejected'].includes(app.status)) {
+                              // Можно только просмотреть информацию, но не зайти в тесты
+                              navigate(`/vacancy/${app.vacancy_id}`)
+                            } else {
+                              navigate(`/vacancy/${app.vacancy_id}`)
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        >
                           <h3 className="vacancy-title">{app.vacancy.title}</h3>
                           <p className="vacancy-position">{app.vacancy.position}</p>
                           <div className="vacancy-meta">
@@ -115,6 +126,9 @@ export function HomePage() {
                               {app.status === 'pending' ? 'Принято' : 
                                app.status === 'survey_completed' ? 'Опрос завершен' :
                                app.status === 'algo_test_completed' ? 'Алготест завершен' :
+                               app.status === 'under_review' ? 'В рассмотрении' :
+                               app.status === 'accepted' ? 'Принято' :
+                               app.status === 'rejected' ? 'Отклонено' :
                                app.status === 'final_verdict' ? 'Получен вердикт' : 'Неизвестно'}
                             </span>
                           </div>
@@ -130,6 +144,18 @@ export function HomePage() {
                           >
                             Решить алгоритмический контест
                           </button>
+                        )}
+                        {app.status === 'algo_test_completed' && (
+                          <div className="application-info-message">
+                            Все этапы пройдены. Заявка отправлена на рассмотрение.
+                          </div>
+                        )}
+                        {['under_review', 'accepted', 'rejected'].includes(app.status) && (
+                          <div className="application-info-message">
+                            {app.status === 'under_review' && 'Заявка находится на рассмотрении. Ожидайте результата.'}
+                            {app.status === 'accepted' && 'Поздравляем! Ваша заявка принята. Мы свяжемся с вами.'}
+                            {app.status === 'rejected' && 'К сожалению, ваша заявка была отклонена.'}
+                          </div>
                         )}
                       </>
                     )}

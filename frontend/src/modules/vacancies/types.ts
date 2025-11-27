@@ -14,9 +14,14 @@ export type Application = {
   user_id: string
   vacancy_id: string
   ml_score: number | null
-  status: 'pending' | 'survey_completed' | 'algo_test_completed' | 'final_verdict'
+  status: 'pending' | 'survey_completed' | 'algo_test_completed' | 'under_review' | 'accepted' | 'rejected' | 'final_verdict'
   created_at: string
   updated_at: string
   vacancy?: Vacancy | null  // Информация о вакансии
+  user?: {
+    id: string
+    email: string
+    full_name: string | null
+  } | null  // Информация о пользователе (для модератора)
 }
 

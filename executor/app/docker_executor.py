@@ -226,7 +226,12 @@ class DockerExecutor:
                     
                     # Сравниваем выводы (expected_output уже обрезан выше)
                     actual_output = test_result['stdout'].strip()
-                    passed = actual_output == expected_output
+                    exit_code = test_result.get('exit_code', 0)
+                    
+                    # Тест считается пройденным только если:
+                    # 1. Код завершился успешно (exit_code == 0)
+                    # 2. Вывод совпадает с ожидаемым
+                    passed = (exit_code == 0) and (actual_output == expected_output)
                     
                     test_results.append({
                         'test_index': test_idx + 1,
@@ -234,6 +239,7 @@ class DockerExecutor:
                         'expected_output': expected_output,
                         'actual_output': actual_output,
                         'passed': passed,
+                        'exit_code': exit_code,
                         'duration_ms': test_duration_ms,
                     })
                 

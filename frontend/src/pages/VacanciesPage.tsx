@@ -31,10 +31,21 @@ export function VacanciesPage() {
   const loadVacancies = async (token: string) => {
     try {
       setLoading(true)
+      setError(null)
+      
       const data = await fetchVacancies(token, language, grade)
       setVacancies(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки вакансий')
+      console.error('Error loading vacancies:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка загрузки вакансий'
+      setError(errorMessage)
+      
+      // Если ошибка критическая, перенаправляем на главную
+      if (errorMessage.includes('авторизац') || errorMessage.includes('401')) {
+        setTimeout(() => {
+          navigate('/')
+        }, 2000)
+      }
     } finally {
       setLoading(false)
     }
@@ -50,8 +61,8 @@ export function VacanciesPage() {
       const { application } = await applyToVacancy(token, vacancyId)
       
       if (application) {
-        // Сразу перенаправляем на главную страницу после выбора вакансии
-        navigate('/home')
+        // Перенаправляем на страницу деталей вакансии, где можно начать опрос
+        navigate(`/vacancy/${vacancyId}`)
       }
     } catch (err) {
       // Обрабатываем только реальные ошибки

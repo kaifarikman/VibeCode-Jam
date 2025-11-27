@@ -9,6 +9,7 @@ import {
   fetchQuestions,
   fetchTasks,
   fetchVacancies,
+  generateTask,
   updateQuestion,
   updateTask,
   updateVacancy,
@@ -21,7 +22,8 @@ import type {
   VacancyCreate,
   VacancyUpdate,
 } from '../modules/admin/types'
-import type { Task, TaskCreate, TaskUpdate } from '../modules/tasks/types'
+import type { Task, TaskCreate, TaskGenerateRequest, TaskUpdate } from '../modules/tasks/types'
+import { TestCasesEditor } from './TestCasesEditor'
 import './AdminPanel.css'
 
 interface AdminPanelProps {
@@ -43,6 +45,8 @@ export function AdminPanel({ token }: AdminPanelProps) {
   const [showQuestionForm, setShowQuestionForm] = useState(false)
   const [showVacancyForm, setShowVacancyForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
+  const [showGenerateTaskForm, setShowGenerateTaskForm] = useState(false)
+  const [generatingTask, setGeneratingTask] = useState(false)
   const [questionFormData, setQuestionFormData] = useState<QuestionCreate>({
     text: '',
     order: 0,
@@ -57,7 +61,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
     grade: 'junior',
     ideal_resume: '',
   })
-  const [taskFormData, setTaskFormData] = useState<TaskCreate>({
+  const initialTaskForm: TaskCreate = {
     title: '',
     description: '',
     topic: null,
@@ -65,16 +69,43 @@ export function AdminPanel({ token }: AdminPanelProps) {
     open_tests: [],
     hidden_tests: [],
     vacancy_id: null,
+    canonical_solution: null,
+  }
+  const [taskFormData, setTaskFormData] = useState<TaskCreate>(initialTaskForm)
+  const [generateTaskFormData, setGenerateTaskFormData] = useState<TaskGenerateRequest>({
+    difficulty: 'medium',
+    topic: null,
+    vacancy_id: null,
   })
 
   useEffect(() => {
     void loadData()
   }, [activeTab])
 
+  useEffect(() => {
+    if (vacancies.length > 0 && !generateTaskFormData.vacancy_id) {
+      setGenerateTaskFormData((prev) => ({
+        ...prev,
+        vacancy_id: prev.vacancy_id ?? vacancies[0].id,
+      }))
+    }
+  }, [vacancies])
+
   const loadData = async () => {
     try {
       setLoading(true)
       setError(null)
+      
+      // Загружаем вакансии всегда, так как они нужны для привязки задач и вопросов
+      if (vacancies.length === 0) {
+        try {
+          const vacanciesData = await fetchVacancies(token)
+          setVacancies(vacanciesData)
+        } catch (err) {
+          console.warn('Failed to load vacancies:', err)
+        }
+      }
+      
       if (activeTab === 'questions') {
         const data = await fetchQuestions(token)
         setQuestions(data)
@@ -180,15 +211,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
     try {
       setError(null)
       await createTask(token, taskFormData)
-      setTaskFormData({
-        title: '',
-        description: '',
-        topic: null,
-        difficulty: 'medium',
-        open_tests: [],
-        hidden_tests: [],
-        vacancy_id: null,
-      })
+      setTaskFormData(initialTaskForm)
       setShowTaskForm(false)
       await loadData()
     } catch (err) {
@@ -217,6 +240,60 @@ export function AdminPanel({ token }: AdminPanelProps) {
       await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка удаления задачи')
+    }
+  }
+
+  const handleGenerateTask = async (e: FormEvent) => {
+    e.preventDefault()
+    try {
+      setError(null)
+      setGeneratingTask(true)
+      if (!generateTaskFormData.vacancy_id) {
+        setGeneratingTask(false)
+        setError('Выберите вакансию для привязки задачи перед генерацией.')
+        return
+      }
+      
+      // Показываем сообщение о генерации
+      const generatedTask = await generateTask(token, generateTaskFormData)
+      
+      // Закрываем форму генерации
+      setShowGenerateTaskForm(false)
+      setGenerateTaskFormData({
+        difficulty: 'medium',
+        topic: null,
+        vacancy_id: null,
+      })
+      
+      // Обновляем список задач сразу
+      await loadData()
+      
+      // Открываем форму редактирования с сгенерированной задачей
+      setTaskFormData({
+        title: generatedTask.title,
+        description: generatedTask.description,
+        topic: generatedTask.topic,
+        difficulty: generatedTask.difficulty,
+        open_tests: generatedTask.open_tests || [],
+        hidden_tests: generatedTask.hidden_tests || [],
+        vacancy_id: generatedTask.vacancy_id,
+        canonical_solution: generatedTask.canonical_solution || '',
+      })
+      setEditingTaskId(generatedTask.id)
+      setShowTaskForm(true)
+      
+      // Прокручиваем к форме редактирования
+      setTimeout(() => {
+        const formElement = document.querySelector('.admin-form-card')
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка генерации задачи через ML')
+      setGeneratingTask(false)
+    } finally {
+      setGeneratingTask(false)
     }
   }
 
@@ -912,22 +989,153 @@ export function AdminPanel({ token }: AdminPanelProps) {
             <button
               type="button"
               className="admin-add-btn"
+              disabled={vacancies.length === 0}
               onClick={() => {
+                if (vacancies.length === 0) {
+                  setError('Сначала добавьте хотя бы одну вакансию, чтобы привязать задачу.')
+                  return
+                }
                 setShowTaskForm(true)
-                setTaskFormData({
-                  title: '',
-                  description: '',
-                  topic: null,
-                  difficulty: 'medium',
-                  open_tests: [],
-                  hidden_tests: [],
-                  vacancy_id: null,
-                })
+      setTaskFormData(initialTaskForm)
               }}
             >
               + Добавить задачу
             </button>
+            <button
+              type="button"
+              className="admin-add-btn"
+              style={{ marginLeft: '10px', backgroundColor: '#6366f1' }}
+              onClick={async () => {
+                // Убеждаемся, что вакансии загружены
+                if (vacancies.length === 0) {
+                  try {
+                    const vacanciesData = await fetchVacancies(token)
+                    setVacancies(vacanciesData)
+                  } catch (err) {
+                    console.warn('Failed to load vacancies:', err)
+                  }
+                }
+                const initialVacancyId = vacancies[0]?.id ?? null
+                if (!initialVacancyId) {
+                  setError('Сначала добавьте хотя бы одну вакансию, чтобы привязать задачу.')
+                  return
+                }
+                setShowGenerateTaskForm(true)
+                setGenerateTaskFormData({
+                  difficulty: 'medium',
+                  topic: null,
+                  vacancy_id: initialVacancyId,
+                })
+              }}
+              disabled={vacancies.length === 0}
+            >
+              🤖 Сгенерировать через ML
+            </button>
           </div>
+
+          {vacancies.length === 0 && (
+            <div className="admin-info-card">
+              <p>Чтобы создавать или генерировать задачи, сначала добавьте хотя бы одну вакансию.</p>
+            </div>
+          )}
+
+          {showGenerateTaskForm && (
+            <div className="admin-form-card generate-card">
+              <div className="admin-form-header">
+                <h3>Генерация задачи через ML</h3>
+                <button
+                  type="button"
+                  className="close-btn"
+                  onClick={() => {
+                    setShowGenerateTaskForm(false)
+                    setGenerateTaskFormData({
+                      difficulty: 'medium',
+                      topic: null,
+                      vacancy_id: vacancies[0]?.id ?? null,
+                    })
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <form onSubmit={handleGenerateTask} className="generate-task-form">
+                <div className="generate-task-info">
+                  <div className="generate-task-icon">✨</div>
+                  <div>
+                    <p className="generate-task-title">ML ассистент подготовит задание</p>
+                    <p className="generate-task-subtitle">
+                      Нейросеть создаст условие, подсказки и полный набор тестов: 3 открытых и 15 закрытых. Пожалуйста,
+                      дождитесь завершения процесса.
+                    </p>
+                  </div>
+                </div>
+                <div className="generate-task-grid">
+                  <label>
+                    <span className="label-text">Сложность</span>
+                    <select
+                      value={generateTaskFormData.difficulty}
+                      onChange={(e) =>
+                        setGenerateTaskFormData({ ...generateTaskFormData, difficulty: e.target.value as 'easy' | 'medium' | 'hard' })
+                      }
+                      required
+                    >
+                      <option value="easy">Легкая</option>
+                      <option value="medium">Средняя</option>
+                      <option value="hard">Сложная</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span className="label-text">Тема/категория</span>
+                    <input
+                      type="text"
+                      value={generateTaskFormData.topic || ''}
+                      onChange={(e) => setGenerateTaskFormData({ ...generateTaskFormData, topic: e.target.value || null })}
+                      placeholder="Например: строки, массивы, графы"
+                    />
+                    <span className="field-hint">Опционально, помогает задать тон задаче.</span>
+                  </label>
+                  <label className="generate-vacancy-field">
+                    <span className="label-text">Вакансия (обязательно)</span>
+                    <select
+                      value={generateTaskFormData.vacancy_id || ''}
+                      onChange={(e) => setGenerateTaskFormData({ ...generateTaskFormData, vacancy_id: e.target.value || null })}
+                      required
+                    >
+                      <option value="" disabled>
+                        Выберите вакансию
+                      </option>
+                      {vacancies.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.title} · {v.language} · {v.grade}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="field-hint">Сгенерированная задача будет доступна кандидатам этой вакансии.</span>
+                  </label>
+                </div>
+                <div className="generate-task-footer">
+                  <button type="submit" className="admin-submit-btn wide" disabled={generatingTask}>
+                    {generatingTask ? 'Генерация задачи...' : 'Сгенерировать задачу'}
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-cancel-btn"
+                    onClick={() => {
+                      setShowGenerateTaskForm(false)
+                      setGenerateTaskFormData({
+                        difficulty: 'medium',
+                        topic: null,
+                        vacancy_id: vacancies[0]?.id ?? null,
+                      })
+                    }}
+                    disabled={generatingTask}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {showTaskForm && (
             <div className="admin-form-card">
@@ -1006,37 +1214,42 @@ export function AdminPanel({ token }: AdminPanelProps) {
                   </select>
                 </label>
                 <div className="form-section">
-                  <h4>Открытые тесты (JSON массив)</h4>
-                  <textarea
-                    value={JSON.stringify(taskFormData.open_tests || [], null, 2)}
-                    onChange={(e) => {
-                      try {
-                        const parsed = JSON.parse(e.target.value)
-                        setTaskFormData({ ...taskFormData, open_tests: parsed })
-                      } catch {
-                        // Invalid JSON, keep as is
-                      }
-                    }}
-                    rows={8}
-                    placeholder='[{"input": "1 2", "output": "3"}]'
+                  <TestCasesEditor
+                    tests={taskFormData.open_tests || []}
+                    onChange={(tests) => setTaskFormData({ ...taskFormData, open_tests: tests })}
+                    title="Открытые тесты"
+                    description="Эти тесты видны пользователям при решении задачи. Используются для проверки решения кнопкой 'Запустить'."
                   />
                 </div>
                 <div className="form-section">
-                  <h4>Закрытые тесты (JSON массив)</h4>
-                  <textarea
-                    value={JSON.stringify(taskFormData.hidden_tests || [], null, 2)}
-                    onChange={(e) => {
-                      try {
-                        const parsed = JSON.parse(e.target.value)
-                        setTaskFormData({ ...taskFormData, hidden_tests: parsed })
-                      } catch {
-                        // Invalid JSON, keep as is
-                      }
-                    }}
-                    rows={8}
-                    placeholder='[{"input": "10 20", "output": "30"}]'
+                  <TestCasesEditor
+                    tests={taskFormData.hidden_tests || []}
+                    onChange={(tests) => setTaskFormData({ ...taskFormData, hidden_tests: tests })}
+                    title="Закрытые тесты"
+                    description="Эти тесты скрыты от пользователей. Используются только при нажатии кнопки 'Submit' для финальной проверки."
                   />
                 </div>
+                {taskFormData.canonical_solution && (
+                  <div className="form-section canonical-solution">
+                    <div className="canonical-header">
+                      <span className="label-text">Эталонное решение (только для админа)</span>
+                      <button
+                        type="button"
+                        className="copy-btn"
+                        onClick={() => navigator.clipboard.writeText(taskFormData.canonical_solution ?? '')}
+                      >
+                        📋 Скопировать
+                      </button>
+                    </div>
+                    <textarea
+                      value={taskFormData.canonical_solution ?? ''}
+                      readOnly
+                      rows={12}
+                      className="canonical-textarea"
+                    />
+                    <p className="field-hint">Решение используется для генерации тестов и проверки корректности.</p>
+                  </div>
+                )}
                 <button type="submit" className="admin-submit-btn">
                   {editingTaskId ? 'Сохранить' : 'Создать'}
                 </button>
@@ -1077,15 +1290,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
                           className="cancel-btn"
                           onClick={() => {
                             setEditingTaskId(null)
-                            setTaskFormData({
-                              title: '',
-                              description: '',
-                              topic: null,
-                              difficulty: 'medium',
-                              open_tests: [],
-                              hidden_tests: [],
-                              vacancy_id: null,
-                            })
+                            setTaskFormData(initialTaskForm)
                           }}
                         >
                           Отмена
@@ -1096,24 +1301,43 @@ export function AdminPanel({ token }: AdminPanelProps) {
                     <>
                       <div className="admin-item-content">
                         <h3>{task.title}</h3>
-                        <p className="admin-item-meta">
-                          Сложность: <strong>{task.difficulty}</strong> | Тема:{' '}
-                          {task.topic || 'Не указана'}
-                        </p>
-                        <div className="admin-item-description">
-                          {task.description.substring(0, 200)}
-                          {task.description.length > 200 ? '...' : ''}
+                        <div className="admin-item-meta">
+                          <span>
+                            Сложность: <strong>{task.difficulty === 'easy' ? 'Легкая' : task.difficulty === 'medium' ? 'Средняя' : 'Сложная'}</strong>
+                          </span>
+                          {task.topic && (
+                            <>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>•</span>
+                              <span>Тема: <strong style={{ color: '#ba55d3' }}>{task.topic}</strong></span>
+                            </>
+                          )}
+                          {task.open_tests && task.open_tests.length > 0 && (
+                            <>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>•</span>
+                              <span>Открытых тестов: <strong style={{ color: '#4caf50' }}>{task.open_tests.length}</strong></span>
+                            </>
+                          )}
+                          {task.hidden_tests && task.hidden_tests.length > 0 && (
+                            <>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>•</span>
+                              <span>Закрытых тестов: <strong style={{ color: '#ff9800' }}>{task.hidden_tests.length}</strong></span>
+                            </>
+                          )}
                         </div>
-                        {task.open_tests && task.open_tests.length > 0 && (
-                          <div className="admin-item-meta">
-                            Открытых тестов: {task.open_tests.length}
-                          </div>
-                        )}
-                        {task.hidden_tests && task.hidden_tests.length > 0 && (
-                          <div className="admin-item-meta">
-                            Закрытых тестов: {task.hidden_tests.length}
-                          </div>
-                        )}
+                        <div className="admin-item-description">
+                          {task.description.substring(0, 300)}
+                          {task.description.length > 300 ? '...' : ''}
+                        </div>
+                        <div className="canonical-preview">
+                          {task.canonical_solution ? (
+                            <pre>
+                              {task.canonical_solution.slice(0, 600)}
+                              {task.canonical_solution.length > 600 ? '…' : ''}
+                            </pre>
+                          ) : (
+                            <p className="field-hint">Эталонное решение не сохранено.</p>
+                          )}
+                        </div>
                       </div>
                       <div className="question-actions">
                         <button
@@ -1129,6 +1353,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
                               open_tests: task.open_tests || [],
                               hidden_tests: task.hidden_tests || [],
                               vacancy_id: task.vacancy_id,
+                              canonical_solution: task.canonical_solution || '',
                             })
                             setShowTaskForm(true)
                           }}

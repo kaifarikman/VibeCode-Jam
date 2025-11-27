@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core.config import get_settings
 from .database import engine
 from .models import Base
-from .routes import admin_router, auth_router, executions_router, questions_router, tasks_router, users_router, vacancies_router, hints_router
+from .routes import admin_router, auth_router, executions_router, questions_router, tasks_router, users_router, vacancies_router, hints_router, scoring_router, moderator_router, moderator_auth_router
 
 
 settings = get_settings()
@@ -42,6 +42,9 @@ api_router.include_router(admin_router)
 api_router.include_router(executions_router)
 api_router.include_router(vacancies_router)
 api_router.include_router(hints_router)
+api_router.include_router(scoring_router)
+api_router.include_router(moderator_router)
+api_router.include_router(moderator_auth_router)
 
 app.include_router(api_router)
 

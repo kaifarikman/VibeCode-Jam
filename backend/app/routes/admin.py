@@ -17,6 +17,7 @@ from ..schemas import (
     QuestionRead,
     QuestionUpdate,
     TaskCreate,
+    TaskGenerateRequest,
     TaskReadWithHidden,
     TaskUpdate,
     VacancyCreate,
@@ -265,8 +266,34 @@ async def list_applications(
     _admin: User = Depends(get_admin_user),
 ):
     """Получить все заявки (админ)"""
-    result = await session.scalars(select(Application).order_by(Application.created_at.desc()))
-    return list(result.all())
+    from sqlalchemy.orm import selectinload
+    from ..schemas import ApplicationRead as AppRead
+    
+    stmt = (
+        select(Application)
+        .options(selectinload(Application.vacancy))
+        .order_by(Application.created_at.desc())
+    )
+    result = await session.scalars(stmt)
+    applications = list(result.all())
+    
+    # Создаем ApplicationRead без поля user (для админа тоже не нужно, модератор использует свой эндпоинт)
+    result_list = []
+    for app in applications:
+        app_dict = {
+            'id': app.id,
+            'user_id': app.user_id,
+            'vacancy_id': app.vacancy_id,
+            'ml_score': app.ml_score,
+            'status': app.status,
+            'created_at': app.created_at,
+            'updated_at': app.updated_at,
+            'vacancy': app.vacancy,
+            'user': None,
+        }
+        result_list.append(AppRead.model_validate(app_dict))
+    
+    return result_list
 
 
 # ========== Tasks Management ==========
@@ -280,6 +307,135 @@ async def list_tasks(
     """Получить список всех задач (админ)"""
     tasks = await crud.list_tasks(session)
     return [TaskReadWithHidden.from_orm(task) for task in tasks]
+
+
+@router.post('/tasks/generate', response_model=TaskReadWithHidden, status_code=status.HTTP_201_CREATED)
+async def generate_task(
+    request: TaskGenerateRequest,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(get_admin_user),
+):
+    """Сгенерировать новую задачу через ML сервис"""
+    import json
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Проверяем, что вакансия выбрана и существует
+        if not request.vacancy_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='При генерации задачи необходимо выбрать вакансию'
+            )
+        vacancy = await session.get(Vacancy, request.vacancy_id)
+        if not vacancy:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f'Вакансия с ID {request.vacancy_id} не найдена'
+            )
+        vacancy_id = request.vacancy_id
+        
+        # Генерируем задачу через ML сервис
+        from ..services.ml_client import ml_client
+        
+        ml_task = await ml_client.generate_task(
+            difficulty=request.difficulty,
+            topic=request.topic
+        )
+        
+        # Преобразуем формат данных из ML в формат БД
+        # 1. Объединяем description с input_format и output_format
+        description_parts = [ml_task.get('description', '')]
+        if ml_task.get('input_format'):
+            description_parts.append(f"\n\n**Формат входных данных:**\n{ml_task['input_format']}")
+        if ml_task.get('output_format'):
+            description_parts.append(f"\n\n**Формат выходных данных:**\n{ml_task['output_format']}")
+        if ml_task.get('constraints'):
+            constraints_text = '\n'.join(f"- {c}" for c in ml_task['constraints'])
+            description_parts.append(f"\n\n**Ограничения:**\n{constraints_text}")
+        full_description = '\n'.join(description_parts)
+        
+        # 2. examples из ML → open_tests в БД (формат {input, output})
+        open_tests_list = None
+        if ml_task.get('examples'):
+            open_tests_list = [
+                {'input': ex.get('input', ''), 'output': ex.get('output', '')}
+                for ex in ml_task['examples'][:3]
+            ]
+        
+        # 3. hidden_tests из ML → формат {input, output}
+        # ML теперь может возвращать hidden_tests_full с outputs, или только hidden_tests (inputs)
+        hidden_tests_list = None
+        if ml_task.get('hidden_tests_full'):
+            # Используем полные тесты с outputs, если они есть
+            hidden_tests_list = ml_task['hidden_tests_full'][:15]
+        elif ml_task.get('hidden_tests'):
+            # Если есть только inputs, создаем с пустыми outputs
+            hidden_tests_list = [
+                {'input': test_input, 'output': ''}
+                for test_input in ml_task['hidden_tests'][:15]
+            ]
+        else:
+            hidden_tests_list = None
+        
+        # Если открытые тесты отсутствуют или их меньше трех, заполняем из закрытых
+        if hidden_tests_list:
+            # Дополняем до 15 тестов при необходимости
+            if hidden_tests_list:
+                base_source = hidden_tests_list.copy()
+                while len(hidden_tests_list) < 15:
+                    seed = base_source[len(hidden_tests_list) % len(base_source)]
+                    hidden_tests_list.append({'input': seed['input'], 'output': seed['output']})
+            if not open_tests_list:
+                open_tests_list = hidden_tests_list[:3]
+            elif len(open_tests_list) < 3:
+                open_tests_list += hidden_tests_list[: 3 - len(open_tests_list)]
+            hidden_tests_list = hidden_tests_list[:15]
+        else:
+            # Используем fallback из открытых тестов или дефолтных значений
+            logger.warning('ML не вернул закрытые тесты. Используем fallback.')
+            fallback_source = open_tests_list or [{'input': '1', 'output': '1'}]
+            hidden_tests_list = []
+            while len(hidden_tests_list) < 15:
+                base = fallback_source[len(hidden_tests_list) % len(fallback_source)]
+                hidden_tests_list.append({'input': base['input'], 'output': base['output']})
+            if not open_tests_list:
+                open_tests_list = hidden_tests_list[:3]
+        
+        # 4. hints сохраняем как есть (уже dict/list)
+        hints_data = ml_task.get('hints')
+        
+        if hidden_tests_list is None or len(hidden_tests_list) < 15:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail='Не удалось сгенерировать закрытые тесты. Попробуйте снова.'
+            )
+        
+        # Создаем задачу в БД с привязкой к вакансии
+        task = await crud.create_task(
+            session=session,
+            title=ml_task.get('title', 'Без названия'),
+            description=full_description,
+            difficulty=ml_task.get('difficulty', request.difficulty),
+            topic=ml_task.get('topic') or request.topic,
+            open_tests=open_tests_list,
+            hidden_tests=hidden_tests_list,
+            vacancy_id=vacancy_id,  # Используем проверенный vacancy_id
+            hints=hints_data,  # hints уже в правильном формате (list[dict])
+            canonical_solution=ml_task.get('canonical_solution'),
+        )
+        
+        await session.commit()
+        await session.refresh(task)
+        return TaskReadWithHidden.from_orm(task)
+        
+    except Exception as e:
+        logger.error(f'Error generating task via ML: {e}', exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f'Ошибка генерации задачи через ML сервис: {str(e)}'
+        )
 
 
 @router.post('/tasks', response_model=TaskReadWithHidden, status_code=status.HTTP_201_CREATED)
@@ -309,6 +465,7 @@ async def create_task(
         open_tests=json.loads(open_tests_json) if open_tests_json else None,
         hidden_tests=json.loads(hidden_tests_json) if hidden_tests_json else None,
         vacancy_id=task_data.vacancy_id,
+        canonical_solution=task_data.canonical_solution,
     )
     await session.commit()
     await session.refresh(task)
@@ -359,6 +516,7 @@ async def update_task(
         open_tests=open_tests_list,
         hidden_tests=hidden_tests_list,
         vacancy_id=task_data.vacancy_id,
+        canonical_solution=task_data.canonical_solution,
     )
     if not task:
         raise HTTPException(

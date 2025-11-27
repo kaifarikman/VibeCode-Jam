@@ -90,3 +90,24 @@ export async function fetchLastSolution(
   return (await response.json()) as LastSolution
 }
 
+export interface ContestCompletionStatus {
+  all_solved: boolean
+  total_tasks: number
+  solved_tasks: number
+  task_ids: string[]
+}
+
+export async function fetchContestCompletionStatus(
+  token: string,
+  vacancyId: string,
+): Promise<ContestCompletionStatus> {
+  const response = await fetch(buildUrl(`/tasks/contest/${vacancyId}/completion-status`), {
+    headers: getAuthHeaders(token),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Ошибка проверки статуса' }))
+    throw new Error(error.detail || 'Не удалось проверить статус завершения')
+  }
+  return (await response.json()) as ContestCompletionStatus
+}
+
