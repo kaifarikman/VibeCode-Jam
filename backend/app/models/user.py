@@ -30,5 +30,14 @@ class User(Base):
     answers: Mapped[list['Answer']] = relationship(
         back_populates='user', cascade='all, delete-orphan'
     )
+    executions: Mapped[list['Execution']] = relationship(
+        back_populates='user', cascade='all, delete-orphan'
+    )
+    applications: Mapped[list['Application']] = relationship(
+        back_populates='user', cascade='all, delete-orphan'
+    )
+    task_solutions: Mapped[list['TaskSolution']] = relationship(
+        back_populates='user', cascade='all, delete-orphan'
+    )
 
 

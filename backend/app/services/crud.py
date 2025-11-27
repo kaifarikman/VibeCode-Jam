@@ -1,11 +1,12 @@
-"""Тривиальные CRUD операции для вопросов и ответов"""
+"""Тривиальные CRUD операции для вопросов, ответов и задач"""
 
+import json
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Answer, Question
+from ..models import Answer, Question, Task
 
 
 # ========== Questions CRUD ==========
@@ -117,6 +118,94 @@ async def delete_answer(session: AsyncSession, answer_id: UUID) -> bool:
         return False
 
     await session.delete(answer)
+    await session.flush()
+    return True
+
+
+# ========== Tasks CRUD ==========
+
+
+async def get_task(session: AsyncSession, task_id: UUID) -> Task | None:
+    """Получить задачу по ID"""
+    return await session.get(Task, task_id)
+
+
+async def list_tasks(session: AsyncSession, vacancy_id: UUID | None = None) -> list[Task]:
+    """Получить все задачи, опционально отфильтрованные по вакансии"""
+    query = select(Task)
+    if vacancy_id:
+        query = query.where((Task.vacancy_id == vacancy_id) | (Task.vacancy_id.is_(None)))
+    result = await session.scalars(query.order_by(Task.difficulty, Task.created_at))
+    return list(result.all())
+
+
+async def create_task(
+    session: AsyncSession,
+    title: str,
+    description: str,
+    difficulty: str = 'medium',
+    topic: str | None = None,
+    open_tests: list[dict] | None = None,
+    hidden_tests: list[dict] | None = None,
+    vacancy_id: UUID | None = None,
+) -> Task:
+    """Создать новую задачу"""
+    task = Task(
+        title=title,
+        description=description,
+        difficulty=difficulty,
+        topic=topic,
+        open_tests=json.dumps(open_tests) if open_tests else None,
+        hidden_tests=json.dumps(hidden_tests) if hidden_tests else None,
+        vacancy_id=vacancy_id,
+    )
+    session.add(task)
+    await session.flush()
+    return task
+
+
+async def update_task(
+    session: AsyncSession,
+    task_id: UUID,
+    title: str | None = None,
+    description: str | None = None,
+    difficulty: str | None = None,
+    topic: str | None = None,
+    open_tests: list[dict] | None = None,
+    hidden_tests: list[dict] | None = None,
+    vacancy_id: UUID | None = None,
+) -> Task | None:
+    """Обновить задачу"""
+    task = await session.get(Task, task_id)
+    if not task:
+        return None
+
+    if title is not None:
+        task.title = title
+    if description is not None:
+        task.description = description
+    if difficulty is not None:
+        task.difficulty = difficulty
+    if topic is not None:
+        task.topic = topic
+    if open_tests is not None:
+        task.open_tests = json.dumps(open_tests) if open_tests else None
+    if hidden_tests is not None:
+        task.hidden_tests = json.dumps(hidden_tests) if hidden_tests else None
+    if vacancy_id is not None:
+        task.vacancy_id = vacancy_id
+
+    await session.flush()
+    return task
+
+
+async def delete_task(session: AsyncSession, task_id: UUID) -> bool:
+    """Удалить задачу"""
+    task = await session.get(Task, task_id)
+    if not task:
+        return False
+
+    await session.delete(task)
     await session.flush()
     return True
 

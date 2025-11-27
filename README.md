@@ -112,6 +112,30 @@ uvicorn app.main:app --reload
 
 **Backend будет доступен на:** http://localhost:8000
 
+### Шаг 3.5: Настройка Executor Service (для выполнения кода)
+
+#### Windows (PowerShell или CMD):
+```powershell
+cd executor
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8001
+```
+
+#### Linux/macOS:
+```bash
+cd executor
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8001
+```
+
+**Executor Service будет доступен на:** http://localhost:8001
+
+> ⚠️ **Важно:** Executor Service требует Docker для выполнения кода. Убедитесь, что Docker запущен.
+
 **API документация:** http://localhost:8000/docs
 
 ### Шаг 4: Настройка Frontend
@@ -316,12 +340,26 @@ pip install -r requirements.txt
 
 ## 📝 API Endpoints
 
+### Авторизация
 - `POST /api/auth/register` - Регистрация пользователя (email + пароль, отправка кода)
 - `POST /api/auth/verify` - Подтверждение e-mail по коду
 - `POST /api/auth/login` - Вход по e-mail и паролю, выдача JWT
+
+### Пользователи
 - `GET /api/users/me` - Профиль текущего пользователя
+- `GET /api/users/me/dashboard` - Данные дашборда
+
+### Вопросы и ответы
 - `GET /api/questions` - Список вопросов
 - `POST /api/questions/{id}/answers` - Сохранение ответа
+- `GET /api/questions/me/answers` - Мои ответы
+
+### Выполнение кода
+- `POST /api/executions` - Создать задачу на выполнение кода
+- `GET /api/executions/{id}` - Получить статус выполнения
+- `GET /api/executions` - Список выполнений пользователя
+
+### Админка
 - `GET /api/admin/questions` - Управление вопросами (только админ)
 - `GET /api/admin/answers` - Просмотр всех ответов (только админ)
 

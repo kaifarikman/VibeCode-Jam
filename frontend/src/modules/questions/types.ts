@@ -2,6 +2,9 @@ export type Question = {
   id: string
   text: string
   order: number
+  question_type: string
+  options: string | null
+  difficulty?: string
   created_at: string
   updated_at: string
 }

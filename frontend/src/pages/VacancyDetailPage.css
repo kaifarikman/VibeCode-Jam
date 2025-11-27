@@ -1,0 +1,222 @@
+/* Vacancy Detail Page - Dark Purple Theme */
+.vacancy-detail-page {
+  min-height: 100vh;
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+.vacancy-detail-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 24px 32px;
+  z-index: 100;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(138, 43, 226, 0.2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.vacancy-detail-content {
+  padding: 120px 24px 80px;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.vacancy-detail-container {
+  max-width: 900px;
+  width: 100%;
+}
+
+.vacancy-detail-card {
+  padding: 40px;
+  background: rgba(20, 20, 20, 0.6);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.vacancy-detail-title {
+  font-size: clamp(28px, 4vw, 36px);
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 16px;
+  text-shadow: 0 0 20px rgba(138, 43, 226, 0.3);
+}
+
+.vacancy-detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(138, 43, 226, 0.2);
+}
+
+.vacancy-detail-position {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+.vacancy-detail-tags {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vacancy-tag {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.vacancy-tag-language {
+  background: rgba(138, 43, 226, 0.2);
+  border: 1px solid rgba(138, 43, 226, 0.4);
+  color: #9370db;
+}
+
+.vacancy-tag-grade {
+  background: rgba(147, 112, 219, 0.2);
+  border: 1px solid rgba(147, 112, 219, 0.4);
+  color: #ba55d3;
+}
+
+.vacancy-detail-section {
+  margin-bottom: 32px;
+}
+
+.section-heading {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 16px;
+}
+
+.vacancy-description {
+  background: rgba(30, 30, 30, 0.6);
+  padding: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(138, 43, 226, 0.2);
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.vacancy-description p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.vacancy-detail-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+.start-test-btn {
+  padding: 16px 48px;
+  background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+}
+
+.start-test-btn:hover {
+  background: linear-gradient(135deg, #9d3ef5 0%, #a082e0 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(138, 43, 226, 0.6);
+}
+
+.test-completed-message {
+  padding: 24px;
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.test-completed-message p {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #4caf50;
+}
+
+.test-status {
+  margin-top: 8px !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  color: rgba(76, 175, 80, 0.8) !important;
+}
+
+.back-btn {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid rgba(138, 43, 226, 0.5);
+  color: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.back-btn:hover {
+  border-color: #8a2be2;
+  background: rgba(138, 43, 226, 0.1);
+}
+
+.error-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 24px;
+  padding: 24px;
+}
+
+.error-message p {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: center;
+}
+
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+@media (max-width: 768px) {
+  .vacancy-detail-header {
+    padding: 16px 20px;
+  }
+
+  .vacancy-detail-content {
+    padding: 100px 16px 60px;
+  }
+
+  .vacancy-detail-card {
+    padding: 24px;
+  }
+
+  .vacancy-detail-meta {
+    flex-direction: column;
+  }
+}
+

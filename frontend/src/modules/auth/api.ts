@@ -27,8 +27,28 @@ export async function registerUser(payload: RegisterPayload) {
     }),
   })
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Не удалось отправить код' }))
-    throw new Error(error.detail || 'Не удалось отправить код подтверждения')
+    const errorData = await response.json().catch(() => ({ detail: 'Не удалось отправить код' }))
+    
+    // Обработка ошибок валидации (422)
+    if (response.status === 422 && errorData.detail) {
+      if (Array.isArray(errorData.detail)) {
+        // Pydantic validation errors
+        const messages = errorData.detail.map((err: any) => {
+          const field = err.loc?.[err.loc.length - 1] || 'поле'
+          const msg = err.msg || 'Ошибка валидации'
+          return `${field === 'body' ? '' : field + ': '}${msg}`
+        })
+        throw new Error(messages.join('. ') || 'Ошибка валидации данных')
+      }
+      throw new Error(errorData.detail || 'Ошибка валидации данных')
+    }
+    
+    // Обработка других ошибок
+    const errorMessage = errorData.detail || 
+      (response.status === 400 ? 'Неверные данные для регистрации' :
+       response.status === 500 ? 'Ошибка сервера. Попробуйте позже' :
+       'Не удалось отправить код подтверждения')
+    throw new Error(errorMessage)
   }
   return response.json()
 }
@@ -40,10 +60,28 @@ export async function verifyRegistration(payload: VerifyCodePayload) {
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Код недействителен' }))
-    throw new Error(error.detail || 'Код недействителен или истёк')
+    const errorData = await response.json().catch(() => ({ detail: 'Код недействителен' }))
+    
+    // Обработка ошибок валидации (422)
+    if (response.status === 422 && errorData.detail) {
+      if (Array.isArray(errorData.detail)) {
+        const messages = errorData.detail.map((err: any) => {
+          const field = err.loc?.[err.loc.length - 1] || 'поле'
+          const msg = err.msg || 'Ошибка валидации'
+          return `${field === 'body' ? '' : field + ': '}${msg}`
+        })
+        throw new Error(messages.join('. ') || 'Ошибка валидации данных')
+      }
+      throw new Error(errorData.detail || 'Ошибка валидации данных')
+    }
+    
+    const errorMessage = errorData.detail || 
+      (response.status === 400 ? 'Неверный код подтверждения' :
+       response.status === 500 ? 'Ошибка сервера. Попробуйте позже' :
+       'Код недействителен или истёк')
+    throw new Error(errorMessage)
   }
-  return response.json()
+  return (await response.json()) as AuthSuccessResponse
 }
 
 export async function login(payload: LoginPayload) {
@@ -53,8 +91,26 @@ export async function login(payload: LoginPayload) {
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Ошибка входа' }))
-    throw new Error(error.detail || 'Неверный email или пароль')
+    const errorData = await response.json().catch(() => ({ detail: 'Ошибка входа' }))
+    
+    // Обработка ошибок валидации (422)
+    if (response.status === 422 && errorData.detail) {
+      if (Array.isArray(errorData.detail)) {
+        const messages = errorData.detail.map((err: any) => {
+          const field = err.loc?.[err.loc.length - 1] || 'поле'
+          const msg = err.msg || 'Ошибка валидации'
+          return `${field === 'body' ? '' : field + ': '}${msg}`
+        })
+        throw new Error(messages.join('. ') || 'Ошибка валидации данных')
+      }
+      throw new Error(errorData.detail || 'Ошибка валидации данных')
+    }
+    
+    const errorMessage = errorData.detail || 
+      (response.status === 400 ? 'Неверный email или пароль' :
+       response.status === 500 ? 'Ошибка сервера. Попробуйте позже' :
+       'Ошибка входа')
+    throw new Error(errorMessage)
   }
   return (await response.json()) as AuthSuccessResponse
 }
@@ -81,5 +137,18 @@ export async function fetchDashboard(token: string) {
     throw new Error('Не удалось загрузить дашборд')
   }
   return (await response.json()) as DashboardSnapshot
+}
+
+export async function requestLoginCode(payload: { email: string }) {
+  const response = await fetch(buildUrl('/auth/request-code'), {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ email: payload.email }),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Ошибка отправки кода' }))
+    throw new Error(error.detail || 'Не удалось отправить код')
+  }
+  return response.json()
 }
 

@@ -1,10 +1,9 @@
+/* Admin Panel - Lighter Dark Purple Theme */
 .admin-panel {
   min-height: 100vh;
-  background: radial-gradient(circle at 10% 20%, rgba(127, 90, 240, 0.25), transparent 45%),
-    radial-gradient(circle at 90% 80%, rgba(146, 81, 247, 0.15), transparent 45%),
-    #05060a;
-  padding: clamp(32px, 5vw, 64px);
-  color: #f5f7ff;
+  background: #1a1a2e;
+  color: #ffffff;
+  padding: 120px 24px 80px;
 }
 
 .admin-loading {
@@ -19,16 +18,20 @@
 .admin-header {
   max-width: 1200px;
   margin: 0 auto 32px;
+  padding: 24px 32px;
+  background: rgba(30, 30, 50, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(138, 43, 226, 0.3);
+  border-radius: 12px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
+  align-items: center;
 }
 
 .admin-header h1 {
   margin: 0 0 8px 0;
   font-size: clamp(32px, 5vw, 48px);
-  background: linear-gradient(135deg, #f5f7ff 0%, rgba(245, 247, 255, 0.8) 100%);
+  background: linear-gradient(135deg, #8a2be2 0%, #9370db 50%, #ba55d3 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -41,22 +44,53 @@
   font-size: 16px;
 }
 
-.admin-back-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #f5f7ff;
-  padding: 12px 20px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 15px;
+.admin-logout-btn {
+  padding: 10px 20px;
+  background: rgba(244, 67, 54, 0.2);
+  border: 1px solid rgba(244, 67, 54, 0.4);
+  color: #ff6b6b;
+  border-radius: 8px;
+  font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-family: inherit;
 }
 
-.admin-back-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(127, 90, 240, 0.5);
+.admin-logout-btn:hover {
+  background: rgba(244, 67, 54, 0.3);
+  border-color: #ff6b6b;
+  transform: translateY(-2px);
+}
+
+.admin-tabs {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+  display: flex;
+  gap: 12px;
+  border-bottom: 1px solid rgba(138, 43, 226, 0.3);
+}
+
+.tab-btn {
+  padding: 12px 24px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.tab-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tab-btn.active {
+  color: #8a2be2;
+  border-bottom-color: #8a2be2;
 }
 
 .admin-error {
@@ -65,11 +99,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #ff7b7b;
+  color: #ff6b6b;
   font-size: 14px;
   padding: 12px 16px;
-  background: rgba(255, 123, 123, 0.1);
-  border: 1px solid rgba(255, 123, 123, 0.2);
+  background: rgba(244, 67, 54, 0.15);
+  border: 1px solid rgba(244, 67, 54, 0.4);
   border-radius: 12px;
 }
 
@@ -79,32 +113,33 @@
 }
 
 .admin-add-btn {
-  background: linear-gradient(135deg, #7f5af0, #9251f7);
+  background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
   border: none;
   color: #fff;
   padding: 14px 24px;
-  border-radius: 12px;
+  border-radius: 8px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(127, 90, 240, 0.3);
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
 }
 
 .admin-add-btn:hover {
+  background: linear-gradient(135deg, #9d3ef5 0%, #a082e0 100%);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(127, 90, 240, 0.4);
+  box-shadow: 0 6px 20px rgba(138, 43, 226, 0.6);
 }
 
 .admin-form-card {
   max-width: 1200px;
   margin: 0 auto 24px;
-  background: rgba(7, 9, 15, 0.94);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  background: rgba(30, 30, 50, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 30px rgba(138, 43, 226, 0.2);
 }
 
 .admin-form-header {
@@ -118,6 +153,7 @@
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+  color: #ffffff;
 }
 
 .close-btn {
@@ -138,8 +174,8 @@
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: rgba(138, 43, 226, 0.2);
+  color: #8a2be2;
 }
 
 .admin-form-card label {
@@ -149,41 +185,38 @@
   margin-bottom: 16px;
 }
 
-.admin-form-card textarea {
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 14px 16px;
-  color: #fff;
-  font-size: 15px;
-  font-family: inherit;
-  resize: vertical;
-  transition: all 0.2s ease;
+.label-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.admin-form-card textarea:focus {
-  outline: none;
-  border-color: rgba(127, 90, 240, 0.5);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
-}
-
-.admin-form-card input[type="number"] {
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+.admin-form-card textarea,
+.admin-form-card input[type="text"],
+.admin-form-card input[type="number"],
+.admin-form-card select {
+  border-radius: 8px;
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  background: rgba(40, 40, 60, 0.8);
   padding: 12px 16px;
   color: #fff;
   font-size: 15px;
   font-family: inherit;
   transition: all 0.2s ease;
+  width: 100%;
 }
 
-.admin-form-card input[type="number"]:focus {
+.admin-form-card textarea {
+  resize: vertical;
+}
+
+.admin-form-card textarea:focus,
+.admin-form-card input:focus,
+.admin-form-card select:focus {
   outline: none;
-  border-color: rgba(127, 90, 240, 0.5);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
+  border-color: #8a2be2;
+  background: rgba(50, 50, 70, 0.9);
+  box-shadow: 0 0 0 3px rgba(138, 43, 226, 0.2);
 }
 
 .admin-form-actions {
@@ -192,7 +225,40 @@
   margin-top: 8px;
 }
 
-.questions-list {
+.submit-btn {
+  background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
+  border: none;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+}
+
+.submit-btn:hover {
+  background: linear-gradient(135deg, #9d3ef5 0%, #a082e0 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(138, 43, 226, 0.6);
+}
+
+.submit-btn.ghost {
+  background: transparent;
+  border: 1px solid rgba(138, 43, 226, 0.5);
+  color: #8a2be2;
+  box-shadow: none;
+}
+
+.submit-btn.ghost:hover {
+  background: rgba(138, 43, 226, 0.1);
+  border-color: #8a2be2;
+  transform: none;
+}
+
+.questions-list,
+.vacancies-list {
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
@@ -205,24 +271,32 @@
   padding: 48px 24px;
   color: rgba(255, 255, 255, 0.5);
   font-size: 16px;
+  background: rgba(30, 30, 50, 0.6);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  border-radius: 12px;
 }
 
-.question-card {
-  background: rgba(7, 9, 15, 0.94);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+.question-card,
+.vacancy-card {
+  background: rgba(30, 30, 50, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-  transition: all 0.2s ease;
+  box-shadow: 0 8px 30px rgba(138, 43, 226, 0.2);
+  transition: all 0.3s ease;
 }
 
-.question-card:hover {
-  border-color: rgba(127, 90, 240, 0.3);
-  box-shadow: 0 20px 60px rgba(127, 90, 240, 0.15);
+.question-card:hover,
+.vacancy-card:hover {
+  border-color: #8a2be2;
+  box-shadow: 0 8px 30px rgba(138, 43, 226, 0.4);
+  transform: translateY(-4px);
+  background: rgba(40, 40, 60, 0.95);
 }
 
-.question-content {
+.question-content,
+.vacancy-content {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -234,12 +308,12 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, rgba(127, 90, 240, 0.2), rgba(146, 81, 247, 0.2));
-  border: 1px solid rgba(127, 90, 240, 0.3);
+  background: rgba(138, 43, 226, 0.2);
+  border: 1px solid rgba(138, 43, 226, 0.4);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #7f5af0;
+  color: #8a2be2;
 }
 
 .question-text {
@@ -249,114 +323,145 @@
   margin: 8px 0;
 }
 
-.question-meta {
+.question-meta,
+.vacancy-meta {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
 }
 
-.question-actions {
+.vacancy-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.vacancy-position {
+  font-size: 16px;
+  color: #9370db;
+  font-weight: 500;
+}
+
+.vacancy-resume-preview {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+}
+
+.question-actions,
+.vacancy-actions {
   display: flex;
   gap: 12px;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(138, 43, 226, 0.3);
 }
 
 .edit-btn,
 .delete-btn {
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 10px 18px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   font-family: inherit;
 }
 
 .edit-btn {
-  background: rgba(127, 90, 240, 0.2);
-  border: 1px solid rgba(127, 90, 240, 0.3);
-  color: #7f5af0;
+  background: rgba(138, 43, 226, 0.2);
+  border: 1px solid rgba(138, 43, 226, 0.4);
+  color: #8a2be2;
 }
 
 .edit-btn:hover {
-  background: rgba(127, 90, 240, 0.3);
-  border-color: rgba(127, 90, 240, 0.5);
+  background: rgba(138, 43, 226, 0.3);
+  border-color: #8a2be2;
+  transform: translateY(-2px);
 }
 
 .delete-btn {
-  background: rgba(255, 123, 123, 0.1);
-  border: 1px solid rgba(255, 123, 123, 0.2);
-  color: #ff7b7b;
+  background: rgba(244, 67, 54, 0.15);
+  border: 1px solid rgba(244, 67, 54, 0.4);
+  color: #ff6b6b;
 }
 
 .delete-btn:hover {
-  background: rgba(255, 123, 123, 0.2);
-  border-color: rgba(255, 123, 123, 0.4);
+  background: rgba(244, 67, 54, 0.25);
+  border-color: #ff6b6b;
+  transform: translateY(-2px);
 }
 
-.question-edit {
+.question-edit,
+.vacancy-edit {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.question-edit label {
+.question-edit label,
+.vacancy-edit label {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.question-edit textarea {
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 14px 16px;
-  color: #fff;
-  font-size: 15px;
-  font-family: inherit;
-  resize: vertical;
-  transition: all 0.2s ease;
-}
-
-.question-edit textarea:focus {
-  outline: none;
-  border-color: rgba(127, 90, 240, 0.5);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
-}
-
-.question-edit input[type="number"] {
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+.question-edit textarea,
+.vacancy-edit textarea,
+.question-edit input,
+.vacancy-edit input,
+.question-edit select,
+.vacancy-edit select {
+  border-radius: 8px;
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  background: rgba(40, 40, 60, 0.8);
   padding: 12px 16px;
   color: #fff;
   font-size: 15px;
   font-family: inherit;
   transition: all 0.2s ease;
+  width: 100%;
 }
 
-.question-edit input[type="number"]:focus {
+.question-edit textarea,
+.vacancy-edit textarea {
+  resize: vertical;
+}
+
+.question-edit textarea:focus,
+.vacancy-edit textarea:focus,
+.question-edit input:focus,
+.vacancy-edit input:focus,
+.question-edit select:focus,
+.vacancy-edit select:focus {
   outline: none;
-  border-color: rgba(127, 90, 240, 0.5);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(127, 90, 240, 0.1);
+  border-color: #8a2be2;
+  background: rgba(50, 50, 70, 0.9);
+  box-shadow: 0 0 0 3px rgba(138, 43, 226, 0.2);
 }
 
-.question-edit-actions {
+.question-edit-actions,
+.vacancy-edit-actions {
   display: flex;
   gap: 12px;
   margin-top: 8px;
 }
 
 @media (max-width: 768px) {
-  .admin-header {
-    flex-direction: column;
+  .admin-panel {
+    padding: 100px 16px 60px;
   }
 
-  .question-actions {
+  .admin-header {
+    padding: 16px 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .question-actions,
+  .vacancy-actions {
     flex-direction: column;
   }
 
@@ -365,4 +470,3 @@
     width: 100%;
   }
 }
-
