@@ -151,6 +151,9 @@ export async function generateTask(
   if (data.vacancy_id) {
     requestData.vacancy_id = data.vacancy_id
   }
+  if (data.language) {
+    requestData.language = data.language
+  }
   
   const response = await fetch(buildUrl('/admin/tasks/generate'), {
     method: 'POST',

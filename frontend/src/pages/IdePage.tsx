@@ -1,22 +1,50 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
 import { fetchProfile } from '../modules/auth/api'
 import type { UserProfile } from '../modules/auth/types'
 import { codeSamples, getSolutionFileName } from '../modules/ide/codeSamples'
 import { fetchQuestions } from '../modules/questions/api'
-import { getRandomTasks } from '../modules/vacancies/api'
-import { fetchContestTasks, fetchSolvedTasks, fetchTaskTestsForSubmit, fetchLastSolution, fetchContestCompletionStatus } from '../modules/tasks/api'
+import { getRandomTasks, fetchVacancy } from '../modules/vacancies/api'
+import {
+  fetchContestTasks,
+  fetchSolvedTasks,
+  fetchTaskTestsForSubmit,
+  fetchLastSolution,
+  fetchContestCompletionStatus,
+  fetchTaskCommunication,
+  answerTaskCommunication,
+} from '../modules/tasks/api'
 import type { Question } from '../modules/questions/types'
-import type { Task } from '../modules/tasks/types'
+import type { Task, TaskCommunication, SolutionMlMeta, SolutionAntiCheatMeta } from '../modules/tasks/types'
 import { createExecution, getExecution } from '../modules/executions/api'
 import type { Execution } from '../modules/executions/types'
 import { requestHint, getUsedHints, getAvailableHints, type HintResponse } from '../modules/hints/api'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
+import type { PluggableList } from 'unified'
 import '../App.css'
 
 const TOKEN_STORAGE_KEY = 'vibecode_token'
 const LANGUAGE_STORAGE_KEY = 'vibecode_language'
 type SupportedLanguage = 'python' | 'typescript' | 'go' | 'java'
+
+const normalizeLanguage = (value?: string | null): SupportedLanguage => {
+  const lang = (value || '').toLowerCase()
+  if (lang.startsWith('py')) return 'python'
+  if (lang.startsWith('ts') || lang.includes('type')) return 'typescript'
+  if (lang.startsWith('go')) return 'go'
+  if (lang.startsWith('java')) return 'java'
+  return 'python'
+}
+
+const languageLabels: Record<SupportedLanguage, string> = {
+  python: 'Python',
+  typescript: 'TypeScript',
+  go: 'Go',
+  java: 'Java',
+}
 
 
 export function IdePage() {
@@ -32,6 +60,8 @@ export function IdePage() {
     const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY) as SupportedLanguage
     return saved || 'python'
   })
+  const [contestLanguage, setContestLanguage] = useState<SupportedLanguage | null>(null)
+  const [contestCompleted, setContestCompleted] = useState(false)
   const [solutionCode, setSolutionCode] = useState<string>(() => {
     // В контестном режиме всегда начинаем с пустого шаблона
     // Проверяем, есть ли contest_vacancy_id в URL
@@ -51,12 +81,28 @@ export function IdePage() {
   const [currentExecution, setCurrentExecution] = useState<Execution | null>(null)
   const [executionLoading, setExecutionLoading] = useState(false)
   const [runMode, setRunMode] = useState<'run' | 'submit'>('run') // 'run' для открытых тестов, 'submit' для всех
-  const [activeTab, setActiveTab] = useState<'condition' | 'solution' | 'results'>('condition')
+  const [activeTab, setActiveTab] = useState<'condition' | 'solution' | 'results' | 'chat'>('condition')
   const [usedHints, setUsedHints] = useState<Set<string>>(new Set()) // Использованные подсказки для текущей задачи
   const [availableHints, setAvailableHints] = useState<string[]>([]) // Доступные подсказки
   const [hintLoading, setHintLoading] = useState(false)
   const [currentHint, setCurrentHint] = useState<HintResponse | null>(null) // Текущая открытая подсказка
   const [totalPenalty, setTotalPenalty] = useState(0) // Общий штраф за подсказки
+  const [lastSolutionMeta, setLastSolutionMeta] = useState<{
+    ml: SolutionMlMeta | null
+    antiCheat: SolutionAntiCheatMeta | null
+  } | null>(null)
+  const [communication, setCommunication] = useState<TaskCommunication | null>(null)
+  const [communicationAnswer, setCommunicationAnswer] = useState('')
+  const [communicationLoading, setCommunicationLoading] = useState(false)
+  const [communicationError, setCommunicationError] = useState<string | null>(null)
+  const effectiveLanguage: SupportedLanguage = (isContestMode && contestLanguage) ? contestLanguage : selectedLanguage
+  const markdownPlugins = useMemo<PluggableList>(
+    () => [
+      remarkGfm as PluggableList[number],
+      remarkBreaks as unknown as PluggableList[number],
+    ],
+    [],
+  )
 
   useEffect(() => {
     const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
@@ -81,43 +127,103 @@ export function IdePage() {
     }
   }, [navigate, vacancyId, taskIdsParam, contestVacancyId])
 
-  // Загружаем подсказки и последнее решение при смене задачи
-  useEffect(() => {
-    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
-    if (token && selectedTaskId && isContestMode) {
-      void loadHintsForTask(token, selectedTaskId)
-      setCurrentHint(null) // Сбрасываем текущую подсказку при смене задачи
-      
-      // Сбрасываем текущее выполнение при смене задачи
-      setCurrentExecution(null)
-      
-      // Переключаемся на вкладку "Условие" при смене задачи
-      setActiveTab('condition')
-      
-      // Загружаем последнее решение для этой задачи
-      const loadLastSolution = async () => {
-        try {
-           const lastSolution = await fetchLastSolution(token, selectedTaskId, contestVacancyId ?? undefined)
+  const loadLastSolutionData = useCallback(
+    async (
+      taskId: string,
+      options?: { vacancyId?: string | null; applyCode?: boolean; lockLanguage?: boolean },
+    ) => {
+      const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
+      if (!token || !taskId) return
+      try {
+        const lastSolution = await fetchLastSolution(token, taskId, options?.vacancyId ?? undefined)
+        setLastSolutionMeta({
+          ml: lastSolution.ml ?? null,
+          antiCheat: lastSolution.anti_cheat ?? null,
+        })
+        if (options?.applyCode) {
           if (lastSolution.solution_code && lastSolution.language) {
-            // Если есть сохраненное решение, загружаем его
             setSolutionCode(lastSolution.solution_code)
-            // Если язык отличается, обновляем язык
-            if (lastSolution.language !== selectedLanguage && ['python', 'typescript', 'go', 'java'].includes(lastSolution.language)) {
+            if (
+              lastSolution.language !== selectedLanguage &&
+              ['python', 'typescript', 'go', 'java'].includes(lastSolution.language)
+            ) {
               setSelectedLanguage(lastSolution.language as SupportedLanguage)
             }
           } else {
-            // Если решения нет, используем шаблон
             setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
           }
-        } catch (error) {
-          console.error('Failed to load last solution:', error)
-          // В случае ошибки используем шаблон
+        }
+        if (
+          options?.lockLanguage &&
+          lastSolution.language &&
+          ['python', 'typescript', 'go', 'java'].includes(lastSolution.language)
+        ) {
+          const normalized = normalizeLanguage(lastSolution.language)
+          setContestLanguage(normalized)
+          setSelectedLanguage(normalized)
+        }
+        return lastSolution
+      } catch (error) {
+        console.error('Failed to load last solution:', error)
+        if (options?.applyCode) {
           setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
         }
       }
-      void loadLastSolution()
+    },
+    [selectedLanguage],
+  )
+
+  const loadCommunicationForTask = useCallback(async (taskId: string): Promise<TaskCommunication | null> => {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
+    if (!token || !taskId) return null
+    try {
+      const data = await fetchTaskCommunication(token, taskId)
+      setCommunication(data)
+      setCommunicationAnswer(data?.answer ?? '')
+      setCommunicationError(null)
+      return data
+    } catch (error) {
+      console.error('Failed to load communication:', error)
+      setCommunication(null)
+      setCommunicationAnswer('')
+      setCommunicationError(error instanceof Error ? error.message : 'Не удалось загрузить чат')
+      return null
     }
-  }, [selectedTaskId, isContestMode, selectedLanguage, contestVacancyId])
+  }, [])
+
+  // Загружаем подсказки, решение и чат при смене задачи
+  useEffect(() => {
+    if (!selectedTaskId) {
+      setLastSolutionMeta(null)
+      setCommunication(null)
+      setCommunicationAnswer('')
+      return
+    }
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
+    if (!token) {
+      navigate('/')
+      return
+    }
+    if (isContestMode) {
+      void loadHintsForTask(token, selectedTaskId)
+      setCurrentHint(null)
+      setCurrentExecution(null)
+      setActiveTab('condition')
+    }
+    void loadLastSolutionData(selectedTaskId, {
+      vacancyId: contestVacancyId,
+      applyCode: isContestMode,
+      lockLanguage: isContestMode,
+    })
+    void loadCommunicationForTask(selectedTaskId)
+  }, [
+    selectedTaskId,
+    isContestMode,
+    contestVacancyId,
+    navigate,
+    loadLastSolutionData,
+    loadCommunicationForTask,
+  ])
 
   const loadUser = async (token: string) => {
     try {
@@ -145,8 +251,19 @@ export function IdePage() {
   const loadContestTasks = async (token: string, vacancyId: string) => {
     try {
       setIsContestMode(true)
+      setContestCompleted(false)
+      let forcedLanguage: SupportedLanguage = normalizeLanguage(selectedLanguage)
+      try {
+        const vacancy = await fetchVacancy(token, vacancyId)
+        forcedLanguage = normalizeLanguage(vacancy.language)
+        setContestLanguage(forcedLanguage)
+      } catch (error) {
+        console.error('Failed to load vacancy info for contest', error)
+        setContestLanguage(forcedLanguage)
+      }
+      setSelectedLanguage(forcedLanguage)
       // Сбрасываем код на шаблон при входе в контестный режим
-      setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
+      setSolutionCode(codeSamples[forcedLanguage] || codeSamples.python)
       const contestTasks = await fetchContestTasks(token, vacancyId)
       setTasks(contestTasks)
       if (contestTasks.length > 0) {
@@ -156,7 +273,12 @@ export function IdePage() {
       // Загружаем решенные задачи
       try {
         const solvedIds = await fetchSolvedTasks(token, vacancyId)
-        setSolvedTaskIds(new Set(solvedIds))
+        const solvedSet = new Set(solvedIds)
+        setSolvedTaskIds(solvedSet)
+        if (contestTasks.length > 0) {
+          const everySolved = contestTasks.every(task => solvedSet.has(task.id))
+          setContestCompleted(everySolved)
+        }
       } catch (error) {
         console.error('Failed to load solved tasks:', error)
         // Не критично, продолжаем работу
@@ -164,6 +286,36 @@ export function IdePage() {
     } catch (error) {
       console.error('Failed to load contest tasks:', error)
     }
+  }
+
+  const handleCommunicationSubmit = async () => {
+    if (!communication || !selectedTaskId || !communicationAnswer.trim()) {
+      return
+    }
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
+    if (!token) {
+      navigate('/')
+      return
+    }
+    setCommunicationLoading(true)
+    setCommunicationError(null)
+    try {
+      const response = await answerTaskCommunication(token, selectedTaskId, communicationAnswer.trim())
+      setCommunication(response)
+      setCommunicationAnswer(response.answer ?? '')
+    } catch (error) {
+      console.error('Failed to send communication answer:', error)
+      setCommunicationError(error instanceof Error ? error.message : 'Не удалось отправить ответ')
+    } finally {
+      setCommunicationLoading(false)
+    }
+  }
+
+  const formatScore = (value?: number | null) => {
+    if (value === undefined || value === null) {
+      return '—'
+    }
+    return `${Math.round(value * 100)}%`
   }
 
   // Загрузить использованные и доступные подсказки для задачи
@@ -262,18 +414,27 @@ export function IdePage() {
   }, [solutionCode, selectedLanguage, isContestMode])
 
   useEffect(() => {
-    // В контестном режиме всегда используем шаблон, не загружаем из localStorage
     if (isContestMode) {
-      setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
+      return
+    }
+    const saved = window.localStorage.getItem(`solution_${selectedLanguage}`)
+    if (saved) {
+      setSolutionCode(saved)
     } else {
-      const saved = window.localStorage.getItem(`solution_${selectedLanguage}`)
-      if (saved) {
-        setSolutionCode(saved)
-      } else {
-        setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
-      }
+      setSolutionCode(codeSamples[selectedLanguage] || codeSamples.python)
     }
   }, [selectedLanguage, isContestMode])
+
+  const allContestSolved = useMemo(() => {
+    if (!isContestMode || tasks.length === 0) return false
+    return tasks.every(task => solvedTaskIds.has(task.id))
+  }, [isContestMode, tasks, solvedTaskIds])
+
+  useEffect(() => {
+    if (allContestSolved) {
+      setContestCompleted(true)
+    }
+  }, [allContestSolved])
 
   const selectedTask = useMemo(() => {
     if (!selectedTaskId) return null
@@ -283,12 +444,28 @@ export function IdePage() {
     return questions.find((q) => q.id === selectedTaskId) || null
   }, [questions, tasks, selectedTaskId, isContestMode])
 
+  const taskDescription = useMemo(() => {
+    if (!selectedTask) return ''
+    if (isContestMode && 'description' in selectedTask) {
+      return selectedTask.description ?? ''
+    }
+    if ('text' in selectedTask) {
+      return selectedTask.text ?? ''
+    }
+    return ''
+  }, [selectedTask, isContestMode])
+
+  const contestReady = isContestMode && (contestCompleted || allContestSolved)
+
 
   const handleEditorChange = (value?: string) => {
     setSolutionCode(value || '')
   }
 
   const handleLanguageChange = (lang: SupportedLanguage) => {
+    if (isContestMode && contestLanguage) {
+      return
+    }
     setSelectedLanguage(lang)
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, lang)
   }
@@ -304,7 +481,7 @@ export function IdePage() {
       return
     }
 
-    const solutionFileName = getSolutionFileName(selectedLanguage)
+    const solutionFileName = getSolutionFileName(effectiveLanguage)
     const filesToSend: Record<string, string> = {
       [solutionFileName]: solutionCode,
     }
@@ -345,7 +522,7 @@ export function IdePage() {
       setExecutionLoading(true)
 
       const execution = await createExecution(token, {
-        language: selectedLanguage,
+        language: effectiveLanguage,
         files: filesToSend,
         timeout: 30,
         test_cases: testCases,
@@ -418,12 +595,7 @@ export function IdePage() {
                 if (currentVacancyId) {
                   try {
                     const completionStatus = await fetchContestCompletionStatus(token, currentVacancyId)
-                    if (completionStatus.all_solved) {
-                      // Все задачи решены - редирект на страницу завершения
-                      setTimeout(() => {
-                        navigate(`/contest-complete?vacancy_id=${currentVacancyId}`)
-                      }, 1000)
-                    }
+                    setContestCompleted(completionStatus.all_solved)
                   } catch (error) {
                     console.error('Failed to check completion status:', error)
                   }
@@ -436,6 +608,26 @@ export function IdePage() {
                 }
               }
             }, 500) // Задержка 500ms для гарантии сохранения на backend
+          }
+          const isAccepted =
+            currentRunMode === 'submit' &&
+            currentTaskId &&
+            execution.result?.verdict === 'ACCEPTED'
+          if (currentTaskId) {
+            void loadLastSolutionData(currentTaskId, {
+              vacancyId: currentVacancyId ?? undefined,
+              applyCode: false,
+            })
+            const requestCommunication = (attempt = 0) => {
+              void loadCommunicationForTask(currentTaskId).then(comm => {
+                if (comm && isAccepted) {
+                  setActiveTab('chat')
+                } else if (!comm && isAccepted && attempt < 3) {
+                  setTimeout(() => requestCommunication(attempt + 1), 800)
+                }
+              })
+            }
+            requestCommunication()
           }
           
           return
@@ -461,9 +653,17 @@ export function IdePage() {
     <div className="app-shell">
       <header className="top-bar">
         <div className="project-meta">
-          <p className="project-name">VibeCode Jam IDE</p>
+          <p className="project-name">FutureCareers IDE</p>
           <span className="project-branch">
-            {selectedTask ? `Задача #${selectedTask.order}` : 'Выберите задачу'}
+            {selectedTask
+              ? 'order' in selectedTask && selectedTask.order
+                ? `Задача #${selectedTask.order}`
+                : 'title' in selectedTask && selectedTask.title
+                  ? selectedTask.title
+                  : 'text' in selectedTask
+                    ? selectedTask.text.slice(0, 40)
+                    : 'Текущая задача'
+              : 'Выберите задачу'}
           </span>
         </div>
         <div className="top-bar-actions">
@@ -471,15 +671,19 @@ export function IdePage() {
             <label htmlFor="language-select">Язык:</label>
             <select
               id="language-select"
-              value={selectedLanguage}
+              value={effectiveLanguage}
               onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguage)}
               className="language-select"
+              disabled={isContestMode && !!contestLanguage}
             >
               <option value="python">Python</option>
               <option value="typescript">TypeScript</option>
               <option value="go">Go</option>
               <option value="java">Java</option>
             </select>
+            {isContestMode && contestLanguage && (
+              <span className="language-locked">🔒 {languageLabels[contestLanguage]}</span>
+            )}
           </div>
           {user && (
             <div className="user-chip">
@@ -632,6 +836,13 @@ export function IdePage() {
               >
                 Результаты
               </button>
+              <button
+                type="button"
+                className={`tab-button ${activeTab === 'chat' ? 'active' : ''}`}
+                onClick={() => setActiveTab('chat')}
+              >
+                Чат
+              </button>
             </div>
 
             <div className="tab-content">
@@ -650,34 +861,11 @@ export function IdePage() {
                         )}
                       </div>
                       <div className="task-content">
-                        <p>
-                          {isContestMode && 'description' in selectedTask
-                            ? selectedTask.description
-                            : 'text' in selectedTask
-                              ? selectedTask.text
-                              : ''}
-                        </p>
-                        {isContestMode &&
-                          'open_tests' in selectedTask &&
-                          selectedTask.open_tests &&
-                          selectedTask.open_tests.length > 0 && (
-                            <div className="task-tests">
-                              <h3>Открытые тесты:</h3>
-                              {selectedTask.open_tests.map((test, idx) => (
-                                <div key={idx} className="test-case">
-                                  <div className="test-input">
-                                    <strong>Вход:</strong>
-                                    <pre>{test.input}</pre>
-                                  </div>
-                                  <div className="test-output">
-                                    <strong>Выход:</strong>
-                                    <pre>{test.output}</pre>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        
+                        <div className="task-markdown">
+                          <ReactMarkdown remarkPlugins={markdownPlugins}>
+                            {taskDescription || '_Описание задачи пока недоступно._'}
+                          </ReactMarkdown>
+                        </div>
                         {/* Блок подсказок - всегда показываем в режиме контеста */}
                         {isContestMode && selectedTaskId && (
                           <div className="hints-section">
@@ -739,6 +927,26 @@ export function IdePage() {
                             )}
                           </div>
                         )}
+                        {isContestMode &&
+                          'open_tests' in selectedTask &&
+                          selectedTask.open_tests &&
+                          selectedTask.open_tests.length > 0 && (
+                            <div className="task-tests">
+                              <h3>Открытые тесты:</h3>
+                              {selectedTask.open_tests.map((test, idx) => (
+                                <div key={idx} className="test-case">
+                                  <div className="test-input">
+                                    <strong>Вход:</strong>
+                                    <pre>{test.input}</pre>
+                                  </div>
+                                  <div className="test-output">
+                                    <strong>Выход:</strong>
+                                    <pre>{test.output}</pre>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                       </div>
                     </>
                   ) : (
@@ -750,11 +958,11 @@ export function IdePage() {
               {activeTab === 'solution' && (
                 <div className="code-editor-panel">
                   <div className="editor-header">
-                    <span className="editor-filename">{getSolutionFileName(selectedLanguage)}</span>
+                    <span className="editor-filename">{getSolutionFileName(effectiveLanguage)}</span>
                   </div>
                   <div className="editor-surface">
                     <Editor
-                      language={selectedLanguage === 'typescript' ? 'typescript' : selectedLanguage}
+                      language={effectiveLanguage === 'typescript' ? 'typescript' : effectiveLanguage}
                       theme="vs-dark"
                       value={solutionCode}
                       onChange={handleEditorChange}
@@ -776,6 +984,30 @@ export function IdePage() {
                     <h3>Результаты выполнения</h3>
                     <span>Вывод программы и вердикты</span>
                   </div>
+                  {contestReady && contestVacancyId && (
+                    <div className="contest-finish-banner">
+                      <div>
+                        <h4>Все задачи выполнены</h4>
+                        <p>Ваша заявка отправлена на модерацию. Можно вернуться в главное меню.</p>
+                      </div>
+                      <div className="contest-finish-actions">
+                        <button
+                          type="button"
+                          className="primary"
+                          onClick={() => navigate('/home')}
+                        >
+                          В главное меню
+                        </button>
+                        <button
+                          type="button"
+                          className="contest-ghost"
+                          onClick={() => navigate(`/contest-complete?vacancy_id=${contestVacancyId}`)}
+                        >
+                          Посмотреть статус
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {currentExecution && (
                     <div className="execution-results">
@@ -827,9 +1059,157 @@ export function IdePage() {
                           {currentExecution.error_message}
                         </div>
                       )}
+
+                      {lastSolutionMeta?.ml && (
+                        <div className="result-card">
+                          <div className="result-card-header">
+                            <h4>Оценка кода (ML)</h4>
+                            {typeof lastSolutionMeta.ml.passed === 'boolean' && (
+                              <span className={`badge ${lastSolutionMeta.ml.passed ? 'success' : 'danger'}`}>
+                                {lastSolutionMeta.ml.passed ? 'Оценка пройдена' : 'Требует доработки'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="ml-score-grid">
+                            <div>
+                              <span>Корректность</span>
+                              <strong>{formatScore(lastSolutionMeta.ml.correctness)}</strong>
+                            </div>
+                            <div>
+                              <span>Эффективность</span>
+                              <strong>{formatScore(lastSolutionMeta.ml.efficiency)}</strong>
+                            </div>
+                            <div>
+                              <span>Чистота кода</span>
+                              <strong>{formatScore(lastSolutionMeta.ml.clean_code)}</strong>
+                            </div>
+                          </div>
+                          {lastSolutionMeta.ml.feedback && (
+                            <p className="result-card-feedback">{lastSolutionMeta.ml.feedback}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {lastSolutionMeta?.antiCheat &&
+                        (typeof lastSolutionMeta.antiCheat.flag === 'boolean' ||
+                          lastSolutionMeta.antiCheat.reason) && (
+                          <div className="result-card">
+                            <div className="result-card-header">
+                              <h4>Проверка на плагиат</h4>
+                              <span
+                                className={`badge ${
+                                  lastSolutionMeta.antiCheat.flag ? 'danger' : 'success'
+                                }`}
+                              >
+                                {lastSolutionMeta.antiCheat.flag ? 'Подозрение' : 'Все чисто'}
+                              </span>
+                            </div>
+                            {lastSolutionMeta.antiCheat.reason && (
+                              <p className="result-card-feedback">{lastSolutionMeta.antiCheat.reason}</p>
+                            )}
+                          </div>
+                        )}
                     </div>
                   )}
 
+                </div>
+              )}
+
+              {activeTab === 'chat' && (
+                <div className="chat-panel">
+                  {communicationError && (
+                    <div className="chat-error">
+                      {communicationError}
+                    </div>
+                  )}
+
+                  {!communication && !communicationError && (
+                    <div className="empty-state">Вопрос появится после успешного Submit.</div>
+                  )}
+
+                  {communication && (
+                    <>
+                      <div className="chat-question">
+                        <h3>Вопрос от системы</h3>
+                        <div className="chat-markdown">
+                          <ReactMarkdown remarkPlugins={markdownPlugins}>
+                            {communication.question}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                      <div className="chat-status-row">
+                        <span
+                          className={`badge ${
+                            communication.status === 'completed'
+                              ? 'success'
+                              : communication.status === 'pending'
+                                ? 'warning'
+                                : communication.status === 'error'
+                                  ? 'danger'
+                                  : 'info'
+                          }`}
+                        >
+                          {communication.status === 'pending' && 'Ждёт вашего ответа'}
+                          {communication.status === 'evaluating' && 'Оцениваем ответ'}
+                          {communication.status === 'completed' && 'Оценено'}
+                          {communication.status === 'error' && 'Ошибка оценки'}
+                        </span>
+                        {typeof communication.ml_score === 'number' && (
+                          <span className="chat-score">
+                            Оценка: {Math.round(communication.ml_score * 100)} / 100
+                          </span>
+                        )}
+                      </div>
+
+                      {communication.status === 'pending' && (
+                        <div className="chat-input">
+                          <textarea
+                            value={communicationAnswer}
+                            onChange={(e) => setCommunicationAnswer(e.target.value)}
+                            placeholder="Опишите ход мыслей, объясните решение, укажите ограничения..."
+                            rows={5}
+                            disabled={communicationLoading}
+                          />
+                          <button
+                            type="button"
+                            className="chat-send-button primary"
+                            onClick={handleCommunicationSubmit}
+                            disabled={communicationLoading || !communicationAnswer.trim()}
+                          >
+                            {communicationLoading ? 'Отправка...' : 'Отправить'}
+                          </button>
+                        </div>
+                      )}
+
+                      {communication.status === 'evaluating' && (
+                        <p className="field-hint">Мы оцениваем ваш ответ, подождите пару секунд...</p>
+                      )}
+
+                      {communication.status === 'completed' && (
+                        <div className="chat-answer-view">
+                          <strong>Ваш ответ</strong>
+                          <div className="chat-markdown">
+                            <ReactMarkdown remarkPlugins={markdownPlugins}>
+                              {communication.answer || '—'}
+                            </ReactMarkdown>
+                          </div>
+                          {communication.ml_feedback && (
+                            <div className="chat-markdown field-hint">
+                              <ReactMarkdown remarkPlugins={markdownPlugins}>
+                                {communication.ml_feedback}
+                              </ReactMarkdown>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {communication.status === 'error' && (
+                        <p className="field-hint">
+                          Не удалось получить оценку от ML сервиса. Ответ сохранён, попробуйте позже.
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>

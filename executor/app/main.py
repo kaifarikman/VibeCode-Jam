@@ -97,7 +97,7 @@ async def run_execution(request: ExecuteRequest):
             'started_at': started_at.isoformat(),
             'completed_at': completed_at.isoformat(),
         }
-        
+
     except Exception as exc:  # noqa: BLE001
         completed_at = datetime.now(timezone.utc)
         callback_data = {

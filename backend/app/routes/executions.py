@@ -3,6 +3,7 @@
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,8 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.config import get_settings
 from ..database import get_session
 from ..dependencies.auth import get_current_user
-from ..models import Application, Execution, Task, TaskSolution, User, UserContestTasks
+from ..models import (
+    Application,
+    Execution,
+    Task,
+    TaskSolution,
+    TaskMetric,
+    User,
+    UserContestTasks,
+    Vacancy,
+)
 from ..schemas import ExecutionRead, ExecutionRequest, ExecutionStatus
+from ..services.post_submit import schedule_post_submit
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix='/executions', tags=['executions'])
@@ -28,9 +39,25 @@ async def create_execution(
 ):
     """Создать задачу на выполнение кода"""
     # Создаем запись в БД
+    execution_language = request.language.lower()
+    if request.vacancy_id:
+        vacancy = await session.get(Vacancy, request.vacancy_id)
+        if not vacancy:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Vacancy not found for execution',
+            )
+        vacancy_language = vacancy.language.lower()
+        if execution_language != vacancy_language:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f'Для этой вакансии доступен только язык {vacancy.language}.',
+            )
+        execution_language = vacancy_language
+
     execution = Execution(
         user_id=current_user.id,
-        language=request.language,
+        language=execution_language,
         status='pending',
         files=request.files,
         task_id=request.task_id,
@@ -45,7 +72,7 @@ async def create_execution(
         async with httpx.AsyncClient(timeout=5.0) as client:
             executor_request = {
                 'execution_id': str(execution.id),
-                'language': request.language,
+                'language': execution_language,
                 'files': request.files,
                 'timeout': request.timeout,
             }
@@ -209,6 +236,8 @@ async def execution_callback(
             f"execution_id={execution.id}"
         )
     
+    post_submit_needed = False
+    saved_solution: TaskSolution | None = None
     if (
         execution.is_submit
         and execution.task_id
@@ -259,6 +288,7 @@ async def execution_callback(
                 existing_solution.solution_code = solution_code
                 existing_solution.test_results = test_results
                 existing_solution.execution_id = execution.id
+            saved_solution = existing_solution
         else:
             # Создаем новое решение
             solution = TaskSolution(
@@ -274,8 +304,15 @@ async def execution_callback(
             )
             session.add(solution)
             logger.info(f"Created new TaskSolution: task_id={execution.task_id}, status={new_status}")
+            saved_solution = solution
+        if is_accepted:
+            post_submit_needed = True
 
     try:
+        await session.flush()
+        if saved_solution and new_status == 'solved':
+            await _upsert_task_metric(session, saved_solution, test_results)
+
         await session.commit()
         logger.info(
             f"Successfully saved solution for execution_id={execution.id}, "
@@ -299,6 +336,9 @@ async def execution_callback(
         await session.rollback()
         raise
     
+    if post_submit_needed:
+        schedule_post_submit(execution.id)
+
     return {'detail': 'Callback processed'}
 
 
@@ -338,7 +378,7 @@ async def check_and_update_application_status(
     all_solved = expected_task_ids.issubset(solved_task_ids)
     
     if all_solved:
-        # Обновляем статус заявки на 'algo_test_completed'
+        # Обновляем статус заявки на 'under_review'
         application = await session.scalar(
             select(Application).where(
                 Application.user_id == user_id,
@@ -346,11 +386,51 @@ async def check_and_update_application_status(
             )
         )
         
-        if application and application.status != 'algo_test_completed':
-            application.status = 'algo_test_completed'
+        if application and application.status != 'under_review':
+            application.status = 'under_review'
             await session.commit()
             logger.info(
-                f"Application {application.id} status updated to 'algo_test_completed' "
+                f"Application {application.id} status updated to 'under_review' "
                 f"for user {user_id}, vacancy {vacancy_id}"
             )
+
+
+async def _upsert_task_metric(
+    session: AsyncSession,
+    solution: TaskSolution,
+    test_results: list[dict[str, Any]] | None,
+) -> None:
+    """Сохраняем агрегированные метрики по решению задачи."""
+    if not test_results:
+        return
+
+    tests_total = len(test_results)
+    tests_passed = sum(1 for tr in test_results if tr.get('passed'))
+    total_duration = sum(int(tr.get('duration_ms') or 0) for tr in test_results)
+    average_duration = int(total_duration / tests_total) if tests_total else None
+
+    metric = await session.scalar(
+        select(TaskMetric).where(TaskMetric.task_solution_id == solution.id)
+    )
+    if metric:
+        metric.tests_total = tests_total
+        metric.tests_passed = tests_passed
+        metric.total_duration_ms = total_duration or None
+        metric.average_duration_ms = average_duration
+        metric.verdict = solution.verdict
+        metric.language = solution.language
+    else:
+        metric = TaskMetric(
+            task_solution_id=solution.id,
+            user_id=solution.user_id,
+            task_id=solution.task_id,
+            vacancy_id=solution.vacancy_id,
+            language=solution.language,
+            verdict=solution.verdict,
+            tests_total=tests_total,
+            tests_passed=tests_passed,
+            total_duration_ms=total_duration or None,
+            average_duration_ms=average_duration,
+        )
+        session.add(metric)
 

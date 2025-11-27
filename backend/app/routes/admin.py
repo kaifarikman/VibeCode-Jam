@@ -335,13 +335,17 @@ async def generate_task(
                 detail=f'Вакансия с ID {request.vacancy_id} не найдена'
             )
         vacancy_id = request.vacancy_id
+        target_language = (request.language or vacancy.language or 'python').lower()
+        if target_language not in {'python', 'go', 'java', 'typescript'}:
+            target_language = 'python'
         
         # Генерируем задачу через ML сервис
         from ..services.ml_client import ml_client
         
         ml_task = await ml_client.generate_task(
             difficulty=request.difficulty,
-            topic=request.topic
+            topic=request.topic,
+            language=target_language,
         )
         
         # Преобразуем формат данных из ML в формат БД
@@ -402,6 +406,22 @@ async def generate_task(
                 hidden_tests_list.append({'input': base['input'], 'output': base['output']})
             if not open_tests_list:
                 open_tests_list = hidden_tests_list[:3]
+        
+        # Гарантируем, что у нас всегда есть минимум 3 открытых теста
+        if not open_tests_list:
+            open_tests_list = []
+        if len(open_tests_list) < 3:
+            source_pool = hidden_tests_list or open_tests_list
+            # Если по какой-то причине и скрытых тестов нет — используем заглушки
+            if not source_pool:
+                source_pool = [{'input': '1', 'output': '1'}]
+            # Берем копию источника, чтобы не зависеть от дальнейших изменений списка
+            snapshot = [dict(seed) for seed in source_pool]
+            idx = 0
+            while len(open_tests_list) < 3 and snapshot:
+                seed = snapshot[idx % len(snapshot)]
+                open_tests_list.append({'input': seed.get('input', ''), 'output': seed.get('output', '')})
+                idx += 1
         
         # 4. hints сохраняем как есть (уже dict/list)
         hints_data = ml_task.get('hints')

@@ -42,7 +42,7 @@ class DockerExecutor:
         ext_map = {
             '.py': 'python',
             '.ts': 'typescript',
-            '.js': 'typescript',  # JavaScript тоже через TypeScript
+            '.js': 'typescript',  
             '.go': 'go',
             '.java': 'java',
         }
@@ -63,6 +63,9 @@ class DockerExecutor:
             dict с stdout, stderr, exit_code, duration_ms
         """
         start_time = time.time()
+        stdout = ''
+        stderr = ''
+        exit_code = 0
 
         # Создаем временную директорию
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -125,81 +128,63 @@ class DockerExecutor:
                 # Python
                 command = f'python /workspace/{main_file_path}'
 
-            # Запускаем контейнер
-            container = None
-            try:
-                # Для TypeScript нужна сеть для npx (скачивание typescript компилятора)
-                # Но можно использовать кеш npm для ускорения
-                use_network = language == 'typescript'  # TypeScript нужна сеть для npx
-                
-                # Используем detach=True и logs() для лучшего контроля таймаута
-                container = self.client.containers.run(
-                    image=config['image'],
-                    command=command,
-                    volumes={tmpdir: {'bind': '/workspace', 'mode': 'rw'}},
-                    mem_limit='512m',  # 512MB памяти
-                    cpu_period=100000,
-                    cpu_quota=50000,  # 50% CPU
-                    network_disabled=not use_network,  # Сеть нужна для TypeScript (npx)
-                    detach=True,  # Запускаем в фоне
-                    working_dir='/workspace',
-                    environment={'NPM_CONFIG_CACHE': '/tmp/.npm'} if use_network else None,
-                )
-                
-                # Ждем завершения с таймаутом
+            runner_command = None
+            if test_cases:
+                runner_command = self._prepare_runner(language, main_file_path, tmpdir, timeout)
+
+            if not test_cases:
+                # Запускаем контейнер напрямую только если нет набора тестов.
+                container = None
                 try:
-                    container.wait(timeout=timeout)
-                except Exception as wait_exc:  # noqa: BLE001
-                    # Таймаут или другая ошибка ожидания
-                    container.stop(timeout=1)
-                    raise TimeoutError(f'Execution timeout after {timeout} seconds') from wait_exc
-                
-                # Получаем логи
-                container_output = container.logs(stdout=True, stderr=True)
+                    use_network = language == 'typescript'
+                    container = self.client.containers.run(
+                        image=config['image'],
+                        command=command,
+                        volumes={tmpdir: {'bind': '/workspace', 'mode': 'rw'}},
+                        mem_limit='512m',
+                        cpu_period=100000,
+                        cpu_quota=50000,
+                        network_disabled=not use_network,
+                        detach=True,
+                        working_dir='/workspace',
+                        environment={'NPM_CONFIG_CACHE': '/tmp/.npm'} if use_network else None,
+                    )
+                    try:
+                        container.wait(timeout=timeout)
+                    except Exception as wait_exc:  # noqa: BLE001
+                        container.stop(timeout=1)
+                        raise TimeoutError(f'Execution timeout after {timeout} seconds') from wait_exc
 
-                # Получаем отдельно stdout и stderr
-                stdout_bytes = container.logs(stdout=True, stderr=False)
-                stderr_bytes = container.logs(stdout=False, stderr=True)
-                
-                # Получаем код возврата
-                container.reload()
-                exit_code = container.attrs['State']['ExitCode'] or 0
-                
-                # Декодируем вывод
-                stdout = stdout_bytes.decode('utf-8', errors='replace') if stdout_bytes else ''
-                # Показываем stderr только если есть реальная ошибка (exit_code != 0)
-                # Игнорируем предупреждения компилятора и другие несущественные сообщения
-                stderr_raw = stderr_bytes.decode('utf-8', errors='replace') if stderr_bytes else ''
-                stderr = stderr_raw if exit_code != 0 and stderr_raw.strip() else ''
-
-            except TimeoutError as exc:
-                # Таймаут
-                stdout = ''
-                stderr = str(exc)
-                exit_code = -1
-            except docker.errors.ContainerError as exc:
-                # Контейнер завершился с ошибкой
-                stdout = exc.stdout.decode('utf-8', errors='replace') if exc.stdout else ''
-                stderr = exc.stderr.decode('utf-8', errors='replace') if exc.stderr else str(exc)
-                exit_code = exc.exit_status
-            except Exception as exc:  # noqa: BLE001
-                # Другая ошибка
-                stdout = ''
-                stderr = f'Docker error: {str(exc)}'
-                exit_code = -1
-            finally:
-                # Удаляем контейнер если он еще существует
-                try:
-                    if container:
-                        container.remove(force=True)
-                except Exception:  # noqa: BLE001
-                    pass
-
-            duration_ms = int((time.time() - start_time) * 1000)
+                    stdout_bytes = container.logs(stdout=True, stderr=False)
+                    stderr_bytes = container.logs(stdout=False, stderr=True)
+                    container.reload()
+                    exit_code = container.attrs['State']['ExitCode'] or 0
+                    stdout = stdout_bytes.decode('utf-8', errors='replace') if stdout_bytes else ''
+                    stderr_raw = stderr_bytes.decode('utf-8', errors='replace') if stderr_bytes else ''
+                    stderr = stderr_raw if exit_code != 0 and stderr_raw.strip() else ''
+                except TimeoutError as exc:
+                    stdout = ''
+                    stderr = str(exc)
+                    exit_code = -1
+                except docker.errors.ContainerError as exc:
+                    stdout = exc.stdout.decode('utf-8', errors='replace') if exc.stdout else ''
+                    stderr = exc.stderr.decode('utf-8', errors='replace') if exc.stderr else str(exc)
+                    exit_code = exc.exit_status
+                except Exception as exc:  # noqa: BLE001
+                    stdout = ''
+                    stderr = f'Docker error: {str(exc)}'
+                    exit_code = -1
+                finally:
+                    try:
+                        if container:
+                            container.remove(force=True)
+                    except Exception:  # noqa: BLE001
+                        pass
 
             # Если есть тесты, запускаем код на каждом тесте
             test_results = []
             if test_cases:
+                first_error_output = ''
                 for test_idx, test_case in enumerate(test_cases):
                     # test_case может быть dict (если пришел из JSON напрямую) или Pydantic объектом
                     if isinstance(test_case, dict):
@@ -221,6 +206,7 @@ class DockerExecutor:
                         tmpdir=tmpdir,
                         test_input=test_input,
                         timeout=timeout,
+                        runner_command=runner_command,
                     )
                     test_duration_ms = int((time.time() - test_start_time) * 1000)
                     
@@ -242,11 +228,20 @@ class DockerExecutor:
                         'exit_code': exit_code,
                         'duration_ms': test_duration_ms,
                     })
+                    
+                    if test_result.get('stderr'):
+                        error_text = test_result['stderr'].strip()
+                        if error_text:
+                            if not first_error_output:
+                                first_error_output = error_text
+                            actual_output_with_error = f"{actual_output}\nОшибка: {error_text}" if actual_output else f"Ошибка: {error_text}"
+                            test_results[-1]['actual_output'] = actual_output_with_error
                 
                 # Формируем итоговый вывод с результатами тестов
                 passed_count = sum(1 for tr in test_results if tr['passed'])
                 total_count = len(test_results)
-                verdict = 'ACCEPTED' if passed_count == total_count else 'WRONG ANSWER'
+                all_passed = passed_count == total_count
+                verdict = 'ACCEPTED' if all_passed else 'WRONG ANSWER'
                 
                 stdout_lines = [f'Вердикт: {verdict}', f'Пройдено тестов: {passed_count}/{total_count}', '']
                 for tr in test_results:
@@ -254,20 +249,30 @@ class DockerExecutor:
                     stdout_lines.append(f'{status} Тест {tr["test_index"]}: {tr["actual_output"]} (ожидалось: {tr["expected_output"]})')
                 
                 stdout = '\n'.join(stdout_lines)
+                if not all_passed and first_error_output:
+                    stderr = first_error_output
+                exit_code = 0 if all_passed else 1
             else:
                 verdict = None
+                test_results = None
 
             return {
                 'stdout': stdout,
                 'stderr': stderr,
                 'exit_code': exit_code,
-                'duration_ms': duration_ms,
-                'test_results': test_results if test_cases else None,
-                'verdict': verdict if test_cases else None,
+                'duration_ms': int((time.time() - start_time) * 1000),
+                'test_results': test_results,
+                'verdict': verdict,
             }
 
     async def _run_test(
-        self, language: str, main_file_path: str, tmpdir: str, test_input: str, timeout: int
+        self,
+        language: str,
+        main_file_path: str,
+        tmpdir: str,
+        test_input: str,
+        timeout: int,
+        runner_command: str | None = None,
     ) -> dict[str, Any]:
         """Запустить код на одном тесте"""
         config = self.LANGUAGE_CONFIG[language]
@@ -289,18 +294,21 @@ class DockerExecutor:
         
         # Определяем команду запуска с перенаправлением из файла
         # Используем абсолютный путь к файлу для надежности
-        if language == 'typescript':
-            js_file = main_file_path.replace('.ts', '.js')
-            command = f'/bin/sh -c "cd /workspace && npx -y tsc --target ES2020 --module commonjs --esModuleInterop --skipLibCheck *.ts 2>&1 && cat /workspace/test_input.txt | node {js_file}"'
-        elif language == 'java':
-            class_name = os.path.splitext(os.path.basename(main_file_path))[0]
-            command = f'/bin/sh -c "cd /workspace && javac {main_file_path} && cat /workspace/test_input.txt | java {class_name}"'
-        elif language == 'go':
-            command = f'/bin/sh -c "cd /workspace && cat /workspace/test_input.txt | go run {main_file_path}"'
+        if runner_command:
+            command = f'/bin/sh -c "cd /workspace && cat /workspace/test_input.txt | {runner_command}"'
         else:
-            # Python
-            command = f'/bin/sh -c "cd /workspace && cat /workspace/test_input.txt | python {main_file_path}"'
-        
+            if language == 'typescript':
+                js_file = main_file_path.replace('.ts', '.js')
+                command = f'/bin/sh -c "cd /workspace && npx -y tsc --target ES2020 --module commonjs --esModuleInterop --skipLibCheck *.ts 2>&1 && cat /workspace/test_input.txt | node {js_file}"'
+            elif language == 'java':
+                class_name = os.path.splitext(os.path.basename(main_file_path))[0]
+                command = f'/bin/sh -c "cd /workspace && cat /workspace/test_input.txt | java {class_name}"'
+            elif language == 'go':
+                command = f'/bin/sh -c "cd /workspace && cat /workspace/test_input.txt | go run {main_file_path}"'
+            else:
+                # Python
+                command = f'/bin/sh -c "cd /workspace && cat /workspace/test_input.txt | python {main_file_path}"'
+            
         container = None
         try:
             use_network = language == 'typescript'
@@ -347,4 +355,72 @@ class DockerExecutor:
             'stderr': stderr,
             'exit_code': exit_code,
         }
+
+    def _prepare_runner(
+        self,
+        language: str,
+        main_file_path: str,
+        tmpdir: str,
+        timeout: int,
+    ) -> str:
+        """
+        Предварительно компилирует/подготавливает окружение и возвращает команду запуска
+        без учёта передачи входных данных (stdin подключается отдельно).
+        """
+        config = self.LANGUAGE_CONFIG[language]
+        use_network = language == 'typescript'
+        compile_container = None
+
+        def run_compile(command: str):
+            nonlocal compile_container
+            try:
+                compile_container = self.client.containers.run(
+                    image=config['image'],
+                    command=command,
+                    volumes={tmpdir: {'bind': '/workspace', 'mode': 'rw'}},
+                    mem_limit='512m',
+                    cpu_period=100000,
+                    cpu_quota=50000,
+                    network_disabled=not use_network,
+                    detach=True,
+                    working_dir='/workspace',
+                    environment={'NPM_CONFIG_CACHE': '/tmp/.npm'} if use_network else None,
+                )
+                compile_container.wait(timeout=timeout)
+            except Exception as exc:  # noqa: BLE001
+                logs = ''
+                if compile_container:
+                    try:
+                        logs_bytes = compile_container.logs(stdout=True, stderr=True)
+                        logs = logs_bytes.decode('utf-8', errors='replace')
+                    except Exception:  # noqa: BLE001
+                        logs = ''
+                raise RuntimeError(f'Failed to prepare {language} environment: {exc}\n{logs}') from exc
+            finally:
+                try:
+                    if compile_container:
+                        compile_container.remove(force=True)
+                except Exception:  # noqa: BLE001
+                    pass
+
+        if language == 'typescript':
+            js_file = main_file_path.replace('.ts', '.js')
+            compile_cmd = '/bin/sh -c "cd /workspace && npx -y tsc --target ES2020 --module commonjs --esModuleInterop --skipLibCheck *.ts"'
+            run_compile(compile_cmd)
+            return f'node {js_file}'
+
+        if language == 'go':
+            binary_name = 'main_bin'
+            compile_cmd = f'/bin/sh -c "cd /workspace && go build -o {binary_name} {main_file_path}"'
+            run_compile(compile_cmd)
+            return f'./{binary_name}'
+
+        if language == 'java':
+            class_name = os.path.splitext(os.path.basename(main_file_path))[0]
+            compile_cmd = f'/bin/sh -c "cd /workspace && javac {main_file_path}"'
+            run_compile(compile_cmd)
+            return f'java {class_name}'
+
+        # Python и прочее без подготовки
+        return f'python {main_file_path}'
 

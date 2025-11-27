@@ -12,6 +12,8 @@ from .question import QuestionCreate, QuestionRead, QuestionUpdate
 from .scoring import ScoringRequest, ScoringResponse
 from .task import TaskCreate, TaskGenerateRequest, TaskRead, TaskReadWithHidden, TaskTestsForSubmit, TaskUpdate
 from .task_solution import TaskSolutionCreate, TaskSolutionRead
+from .task_metric import TaskMetricRead
+from .task_communication import TaskCommunicationRead, TaskCommunicationAnswer
 from .user import DashboardSnapshot, UserRead
 from .vacancy import (
     ApplicationCreate,
@@ -55,6 +57,9 @@ __all__ = [
     'ApplicationStatusUpdate',
     'TaskSolutionCreate',
     'TaskSolutionRead',
+    'TaskCommunicationRead',
+    'TaskCommunicationAnswer',
+    'TaskMetricRead',
     'ScoringRequest',
     'ScoringResponse',
 ]

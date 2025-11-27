@@ -17,10 +17,12 @@ class Task(BaseModel):
     hidden_tests_full: Optional[List[Dict[str, str]]] = None  # Полные тесты с input и output
     hints: Optional[List[Dict[str, Any]]] = None  # Подсказки трех уровней
     canonical_solution: Optional[str] = None  # Эталонное решение на Python
+    canonical_solutions: Optional[Dict[str, str]] = None  # Эталонные решения на разных языках
 
 class TaskGenerationRequest(BaseModel):
     difficulty: Literal["easy", "medium", "hard"]
     topic: Optional[str] = None
+    language: Optional[str] = None
 
 class EvaluationRequest(BaseModel):
     code: str

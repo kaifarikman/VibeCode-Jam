@@ -1,371 +1,97 @@
-# VibeCode Jam IDE
+# EXALA – VibeCode Jam IDE
 
-Веб-приложение для программирования с авторизацией, опросом для резюме и админ-панелью.
-
-> 📐 **Архитектура проекта:** см. [ARCHITECTURE.md](./ARCHITECTURE.md)
-
-## ⚡ Быстрый старт (скопируйте и выполните)
-
-### Windows (PowerShell):
-```powershell
-# 1. Запустите инфраструктуру
-docker compose up -d
-
-# 2. Backend
-cd backend
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-copy env.example .env
-cd app
-python -m alembic upgrade head
-cd ..
-uvicorn app.main:app --reload
-
-# 3. В новом терминале - Frontend
-cd frontend
-copy env.example .env
-npm install
-npm run dev
+Привет! Мы команда **EXALA**, и это упакованный стенд для live-демо: IDE с автопроверками, ML пост-пайплайном и админкой. Ниже короткая человеческая инструкция.
 ```
+Весь функионал доступен здесь:
+http://localhost:5173 
+```
+---
 
-### Linux/macOS:
+## 🚀 Как запустить всё сразу
+
 ```bash
-# 1. Запустите инфраструктуру
-docker compose up -d
-
-# 2. Backend
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp env.example .env
-cd app
-python -m alembic upgrade head
-cd ..
-uvicorn app.main:app --reload
-
-# 3. В новом терминале - Frontend
-cd frontend
-cp env.example .env
-npm install
-npm run dev
+git clone <repo-url>
+cd VibeCode-Jam
+docker compose up -d --build
 ```
 
-**Готово!** Откройте http://localhost:5173 в браузере.
+Спустя пару минут будут доступны:
+
+| Сервис        | URL                    | Комментарий                             |
+|---------------|-----------------------|-----------------------------------------|
+| Frontend      | http://localhost:5173 | IDE, опросы, контест                    |
+| API + Swagger | http://localhost:8000 /docs | Все эндпоинты и документация     |
+| Mailhog       | http://localhost:8025 | Тестовые письма (OTP, уведомления)      |
+
+Compose автоматически мигрирует базу и прогоняет сид ( `backend/scripts/bootstrap_seed.py` ), поэтому стартовые вакансии и вопросы уже внутри. Остановить всё: `docker compose down`.
 
 ---
 
-## 📖 Подробная инструкция
+## 🧱 Базовая архитектура
 
-### Требования
+| Блок     | Технологии                         | Что делает                                                              |
+|----------|------------------------------------|-------------------------------------------------------------------------|
+| Backend  | FastAPI, SQLAlchemy async, Alembic | Auth, IDE API, пост-submit пайплайн, связь с ML и executor              |
+| Executor | FastAPI + Docker SDK               | Запускает пользовательский код в изолированных контейнерах             |
+| ML       | FastAPI                            | Генерация задач, оценка решений, анти-чит, follow-up чат, адаптивность |
+| Frontend | React 19, Vite, TypeScript         | Веб-IDE, админка, контест, чат                                          |
+| Infra    | Postgres 16, Mailhog               | База данных и тестовая почта                                            |
 
-- **Python 3.11+** (для backend)
-- **Node.js 18+** (для frontend)
-- **Docker & Docker Compose** (для PostgreSQL и Mailhog)
+---
 
-### Шаг 1: Клонирование и настройка
-
-```bash
-# Клонируйте репозиторий (если еще не клонирован)
-git clone <repository-url>
-cd VibeCode-Jam
-```
-
-### Шаг 2: Запуск инфраструктуры (PostgreSQL + Mailhog)
+## ⚙️ Полезные команды
 
 ```bash
-# Запустите Docker Compose
-docker compose up -d
+# Пересобрать и поднять
+docker compose up -d --build
 
-# Проверьте, что контейнеры запущены
-docker compose ps
+# Запустить скрипт базовой инициализации
+docker compose exec backend python scripts/init_data.py
+
+# Остановить с очисткой volume
+docker compose down -v
+
+# Логи сервиса
+docker compose logs backend -f
+
+# Повторно прогнать сидер (если нужно пустую базу)
+docker compose run --rm backend python scripts/bootstrap_seed.py
 ```
 
-### Шаг 3: Настройка Backend
+---
 
-#### Windows (PowerShell или CMD):
-```powershell
-cd backend
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-copy env.example .env
-cd app
-python -m alembic upgrade head
-cd ..
-uvicorn app.main:app --reload
-```
+## ✅ Что проверить после старта
 
-#### Linux/macOS:
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp env.example .env
-cd app
-python -m alembic upgrade head
-cd ..
-uvicorn app.main:app --reload
-```
+1. Frontend на `:5173` открывается, OTP приходит в Mailhog.
+2. Swagger на `:8000/docs` отвечает (проверить `/auth`, `/tasks`).
+3. `docker compose ps` показывает все контейнеры в статусе `Up`.
 
-**Backend будет доступен на:** http://localhost:8000
+---
 
-### Шаг 3.5: Настройка Executor Service (для выполнения кода)
-
-#### Windows (PowerShell или CMD):
-```powershell
-cd executor
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8001
-```
-
-#### Linux/macOS:
-```bash
-cd executor
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8001
-```
-
-**Executor Service будет доступен на:** http://localhost:8001
-
-> ⚠️ **Важно:** Executor Service требует Docker для выполнения кода. Убедитесь, что Docker запущен.
-
-**API документация:** http://localhost:8000/docs
-
-### Шаг 4: Настройка Frontend
-
-#### Windows (PowerShell или CMD):
-```powershell
-cd frontend
-copy env.example .env
-npm install
-npm run dev
-```
-
-#### Linux/macOS:
-```bash
-cd frontend
-cp env.example .env
-npm install
-npm run dev
-```
-
-**Frontend будет доступен на:** http://localhost:5173
-
-### Шаг 5: Проверка работы
-
-1. Откройте http://localhost:5173 в браузере
-2. Введите email и запросите код для входа
-3. Проверьте код в Mailhog: http://localhost:8025
-4. Введите код и войдите в систему
-
-## 📧 Mailhog (Тестовая почта)
-
-Mailhog используется для тестирования отправки email. Все письма можно просмотреть в веб-интерфейсе:
-
-**Веб-интерфейс Mailhog:** http://localhost:8025
-
-## 🔧 Настройка переменных окружения
-
-### Backend (`.env` в папке `backend/`)
-
-Скопируйте `env.example` в `.env` и при необходимости измените:
-
-```env
-APP_NAME=VibeCode IDE API
-API_V1_STR=/api
-SECRET_KEY=CHANGE_ME_SUPER_SECRET  # Измените на случайную строку!
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-
-DATABASE_URL=postgresql+asyncpg://vibecode_jam:vibecode_jam@localhost:5432/vibecode_jam
-
-SMTP_HOST=localhost
-SMTP_PORT=1025
-SMTP_USER=
-SMTP_PASSWORD=
-SMTP_FROM=ide@vibecode.local
-SMTP_TLS=False
-```
-
-### Frontend (`.env` в папке `frontend/`)
-
-Скопируйте `env.example` в `.env`:
-
-```env
-VITE_API_BASE_URL=http://localhost:8000/api
-```
-
-## 👤 Назначение администратора
-
-Чтобы сделать пользователя администратором, выполните SQL запрос:
-
-```bash
-# Windows (PowerShell)
-docker compose exec postgres psql -U vibecode_jam -d vibecode_jam -c "UPDATE users SET is_admin = true WHERE email = 'your-email@example.com';"
-
-# Linux/macOS
-docker compose exec postgres psql -U vibecode_jam -d vibecode_jam -c "UPDATE users SET is_admin = true WHERE email = 'your-email@example.com';"
-```
-
-Или через любой PostgreSQL клиент подключитесь к базе и выполните:
-```sql
-UPDATE users SET is_admin = true WHERE email = 'your-email@example.com';
-```
-
-## 🔐 Авторизация
-
-- Регистрация требует e-mail, пароль и (опционально) имя
-- После регистрации отправляется 6-значный код для подтверждения почты (Mailhog)
-- Код нужен только для подтверждения — дальнейший вход по e-mail + пароль
-- JWT-токен сохраняется в `localStorage`, используется для всех запросов
-
-## 📁 Структура проекта
+## 📁 Навигация по репозиторию
 
 ```
-VibeCode-Jam/
-├── backend/              # FastAPI backend
-│   ├── app/
-│   │   ├── alembic/      # Миграции базы данных
-│   │   ├── core/         # Конфигурация, безопасность
-│   │   ├── models/       # SQLAlchemy модели
-│   │   ├── routes/       # API роуты
-│   │   ├── schemas/      # Pydantic схемы
-│   │   └── services/    # Бизнес-логика, CRUD
-│   ├── env.example       # Пример конфигурации
-│   └── requirements.txt # Python зависимости
-├── frontend/             # React + TypeScript + Vite
-│   ├── src/
-│   │   ├── components/   # React компоненты
-│   │   └── modules/      # Модули (auth, questions, admin)
-│   ├── env.example       # Пример конфигурации
-│   └── package.json      # Node.js зависимости
-└── docker-compose.yml    # Docker конфигурация
+backend/   # FastAPI + миграции, сидер bootstrap_seed.py
+executor/  # сервис выполнения кода
+ml/        # генератор задач и follow-up чат
+frontend/  # React/Vite интерфейс (IDE + админка)
+Dockerfile'ы + docker-compose.yml
 ```
 
-## 🗄️ Миграции базы данных
+---
 
-Проект использует Alembic для управления миграциями. **Миграции применяются автоматически при первом запуске** (см. инструкции выше).
+## 🧪 Swagger
 
-### Применение миграций вручную
+Полная документация API доступна по адресу **http://localhost:8000/docs** — там же можно прогнать auth-flow, IDE ручки и админские endpoints.
 
-#### Windows:
-```powershell
-cd backend\app
-python -m alembic upgrade head
-```
+---
 
-#### Linux/macOS:
-```bash
-cd backend/app
-python -m alembic upgrade head
-```
+## 📨 Почта
 
-### Создание новой миграции
+Mailhog (http://localhost:8025) показывает все тестовые письма: OTP для входа, сообщения после пост-пайплайна и т.д.
 
-#### Windows:
-```powershell
-cd backend\app
-python -m alembic revision --autogenerate -m "Описание изменений"
-python -m alembic upgrade head
-```
+---
 
-#### Linux/macOS:
-```bash
-cd backend/app
-python -m alembic revision --autogenerate -m "Описание изменений"
-python -m alembic upgrade head
-```
+## ✉️ Контакты
 
-## 🛠️ Разработка
-
-### Backend
-
-- **Технологии:** FastAPI, SQLAlchemy (async), PostgreSQL, Alembic, JWT
-- **Порт:** 8000
-- **Hot reload:** включен по умолчанию (`--reload`)
-
-### Frontend
-
-- **Технологии:** React 19, TypeScript, Vite, Monaco Editor
-- **Порт:** 5173
-- **Hot reload:** включен по умолчанию
-
-## 🐛 Решение проблем
-
-### Порт уже занят
-
-Если порт 5432 (PostgreSQL) или 1025/8025 (Mailhog) заняты:
-
-```bash
-# Остановите контейнеры
-docker compose down
-
-# Или остановите конкретный контейнер
-docker stop <container-name>
-```
-
-### Ошибка подключения к базе данных
-
-Убедитесь, что:
-1. Docker Compose запущен: `docker compose ps`
-2. PostgreSQL контейнер работает
-3. В `.env` правильный `DATABASE_URL`
-
-### Ошибка "column does not exist"
-
-Примените миграции:
-```bash
-cd backend/app
-python -m alembic upgrade head
-```
-
-### Alembic не найден
-
-Убедитесь, что виртуальное окружение активировано и зависимости установлены:
-```bash
-# Windows
-.\venv\Scripts\activate
-pip install -r requirements.txt
-
-# Linux/macOS
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-## 📝 API Endpoints
-
-### Авторизация
-- `POST /api/auth/register` - Регистрация пользователя (email + пароль, отправка кода)
-- `POST /api/auth/verify` - Подтверждение e-mail по коду
-- `POST /api/auth/login` - Вход по e-mail и паролю, выдача JWT
-
-### Пользователи
-- `GET /api/users/me` - Профиль текущего пользователя
-- `GET /api/users/me/dashboard` - Данные дашборда
-
-### Вопросы и ответы
-- `GET /api/questions` - Список вопросов
-- `POST /api/questions/{id}/answers` - Сохранение ответа
-- `GET /api/questions/me/answers` - Мои ответы
-
-### Выполнение кода
-- `POST /api/executions` - Создать задачу на выполнение кода
-- `GET /api/executions/{id}` - Получить статус выполнения
-- `GET /api/executions` - Список выполнений пользователя
-
-### Админка
-- `GET /api/admin/questions` - Управление вопросами (только админ)
-- `GET /api/admin/answers` - Просмотр всех ответов (только админ)
-
-Полная документация API доступна на http://localhost:8000/docs
-
-## 📄 Лицензия
-
-MIT
-
+Если что-то пойдёт не так — пишите команде **EXALA**. Мы рядом. 🙌

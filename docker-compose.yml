@@ -7,10 +7,15 @@ services:
       POSTGRES_USER: vibecode_jam
       POSTGRES_PASSWORD: vibecode_jam
       POSTGRES_DB: vibecode_jam
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibecode_jam -d vibecode_jam"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     ports:
       - "5432:5432"
-    volumes:
-      - vibecode_jam_pg_data:/var/lib/postgresql/data
 
   mailhog:
     image: mailhog/mailhog:v1.0.1
@@ -20,6 +25,71 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  backend:
+    build:
+      context: ./backend
+    container_name: vibecode-jam-backend
+    environment:
+      APP_NAME: FutureCareers API
+      API_V1_STR: /api
+      SECRET_KEY: supersecret
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      DATABASE_URL: postgresql+asyncpg://vibecode_jam:vibecode_jam@postgres:5432/vibecode_jam
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_FROM: noreply@futurecareers.local
+      EXECUTOR_SERVICE_URL: http://executor:8001
+      ML_SERVICE_URL: http://ml:8002/api/v1
+      ML_SERVICE_TIMEOUT: 30000
+      MODERATOR_TOKEN: moderator_secret_token
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+      executor:
+        condition: service_started
+      ml:
+        condition: service_started
+    command: >
+      sh -c "python scripts/bootstrap_seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+
+  executor:
+    build:
+      context: ./executor
+    container_name: vibecode-jam-executor
+    environment:
+      BACKEND_URL: http://backend:8000/api
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres
+    ports:
+      - "8001:8001"
+
+  ml:
+    build:
+      context: ./ml
+    container_name: vibecode-jam-ml
+    environment:
+      PORT: 8002
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002
+    ports:
+      - "8002:8002"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8000/api
+    container_name: vibecode-jam-frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
 volumes:
-  vibecode_jam_pg_data:
+  postgres_data:
 

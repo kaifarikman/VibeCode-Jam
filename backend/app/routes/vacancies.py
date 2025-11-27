@@ -92,7 +92,7 @@ async def apply_to_vacancy(
             if existing.status in ['survey_completed', 'algo_test_completed', 'final_verdict', 'under_review', 'accepted', 'rejected']:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail='Вы уже прошли тест по этой вакансии. Повторная подача заявки невозможна.'
+                    detail='Вы уже проходили тест по этой вакансии.'
                 )
             # Если заявка существует, но тест не пройден, возвращаем её
             await session.refresh(existing)

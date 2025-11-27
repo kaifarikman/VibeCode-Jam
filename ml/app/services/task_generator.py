@@ -9,15 +9,21 @@ import re
 class TaskGenerator:
     """Генератор алгоритмических задач с использованием LLM."""
     
-    async def generate_task(self, difficulty: str) -> Task:
+    async def generate_task(self, difficulty: str, language: str | None = None) -> Task:
         """Генерирует задачу заданного уровня сложности.
         
         Args:
             difficulty: Уровень сложности ('easy', 'medium', 'hard')
+            language: Предпочитаемый язык эталонного решения
             
         Returns:
             Task: Сгенерированная задача с описанием и скрытыми тестами
         """
+        supported_languages = {'python', 'go', 'java', 'typescript'}
+        preferred_language = (language or 'python').lower()
+        if preferred_language not in supported_languages:
+            preferred_language = 'python'
+        
         # 1. Генерируем описание задачи с помощью AWQ модели
         prompt = self._get_generation_prompt(difficulty)
         
@@ -39,13 +45,29 @@ class TaskGenerator:
         hidden_test_inputs = hidden_test_inputs[:18]
         
         # 3. Генерируем эталонное решение
-        canonical_solution = await self._generate_canonical_solution(task_data, difficulty)
-        task_data["canonical_solution"] = canonical_solution or None
+        canonical_solutions: dict[str, str] = {}
+        python_solution = await self._generate_canonical_solution(task_data, difficulty, language='python')
+        if python_solution:
+            canonical_solutions['python'] = python_solution
+        
+        if preferred_language != 'python':
+            lang_solution = await self._generate_canonical_solution(
+                task_data,
+                difficulty,
+                language=preferred_language,
+                reference_solution=python_solution,
+            )
+            if lang_solution:
+                canonical_solutions[preferred_language] = lang_solution
+        
+        canonical_for_storage = canonical_solutions.get(preferred_language) or python_solution
+        task_data["canonical_solution"] = canonical_for_storage or None
+        task_data["canonical_solutions"] = canonical_solutions or None
         
         # 4. Генерируем outputs для тестов с помощью эталонного решения, если оно есть
         test_cases: list[dict[str, str]] = []
-        if canonical_solution:
-            executor_results = code_executor.execute(canonical_solution, hidden_test_inputs)
+        if python_solution:
+            executor_results = code_executor.execute(python_solution, hidden_test_inputs)
             if executor_results and len(executor_results) == len(hidden_test_inputs):
                 all_success = all(res.get("success") for res in executor_results)
                 if all_success:
@@ -204,10 +226,37 @@ class TaskGenerator:
             # Fallback: возвращаем тесты с пустыми outputs
             return [{"input": inp, "output": ""} for inp in hidden_test_inputs]
     
-    async def _generate_canonical_solution(self, task_data: dict, difficulty: str) -> str:
-        """Генерирует эталонное решение на Python."""
+    async def _generate_canonical_solution(
+        self,
+        task_data: dict,
+        difficulty: str,
+        language: str = 'python',
+        reference_solution: str | None = None,
+    ) -> str:
+        """Генерирует эталонное решение на указанном языке."""
+        language_names = {
+            'python': 'Python',
+            'go': 'Go',
+            'java': 'Java',
+            'typescript': 'TypeScript',
+        }
+        io_guidance = {
+            'python': "- Код должен читать вход через input()/sys.stdin и печатать через print().",
+            'go': "- Используй пакет bufio и os.Stdin для чтения. Функция main в пакете main, вывод через fmt.Println.",
+            'java': "- Используй класс Main с методом public static void main. Читай через BufferedReader/Scanner, вывод через System.out.",
+            'typescript': "- Запускается в Node.js. Читай ввод через require('fs').readFileSync(0, 'utf8').",
+        }
+        reference_block = ''
+        if reference_solution and language != 'python':
+            reference_block = f"""
+Вот корректное решение на Python, на которое можно опираться:
+```
+{reference_solution}
+```
+Напиши эквивалент на {language_names.get(language, language.title())}, соблюдая стиль и требования языка.
+"""
         prompt = f"""
-        Ты опытный инженер по алгоритмам. Напиши оптимальное решение для следующей задачи НА ПИТОНЕ.
+Ты опытный инженер по алгоритмам. Напиши оптимальное решение задачи НА {language_names.get(language, language.title()).upper()}.
         
         Название задачи: {task_data.get('title')}
         Описание: {task_data.get('description')}
@@ -217,37 +266,42 @@ class TaskGenerator:
         Примеры: {json.dumps(task_data.get('examples', []), ensure_ascii=False)}
         
         Требования:
-        - Код должен читать вход из stdin (input()) и выводить результат в stdout (print()).
-        - Используй только стандартную библиотеку Python.
+- Решение должно читать данные из стандартного ввода и выводить результат в стандартный вывод.
+- Используй только стандартную библиотеку языка.
         - Решение должно быть оптимальным по времени и памяти для уровня сложности {difficulty}.
-        - Не добавляй пояснений, комментариев и Markdown. Верни ТОЛЬКО чистый Python-код.
+- Не добавляй комментарии, объяснения и Markdown. Верни ТОЛЬКО чистый код.
+{io_guidance.get(language, '')}
+{reference_block}
         """
-        
         try:
             content = await llm_client.generate(
                 model=settings.MODEL_CODER,
                 messages=[
-                    {"role": "system", "content": "Ты пишешь оптимальные решения алгоритмических задач на Python."},
+                    {"role": "system", "content": f"Ты пишешь рабочие решения алгоритмических задач на {language_names.get(language, language.title())}."},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.1,
+                temperature=0.15,
                 max_tokens=2048,
             )
-            return self._extract_python_code(content)
+            return self._extract_code_block(content)
         except Exception as e:
-            print(f"Ошибка при генерации эталонного решения: {e}")
+            print(f"Ошибка при генерации решения на {language}: {e}")
             return ""
     
-    def _extract_python_code(self, content: str) -> str:
-        """Извлекает код Python из ответа модели, удаляя маркдауны."""
-        if "```python" in content:
-            content = content.split("```python", 1)[1]
-            content = content.split("```", 1)[0]
-        elif "```" in content:
-            content = content.split("```", 1)[1]
-            content = content.split("```", 1)[0]
-        # Удаляем ведущие подсказки вроде "Вот решение:"
-        content = re.sub(r'^[\s\S]*?(?=def |import |\n)', '', content, count=1).strip()
+    def _extract_code_block(self, content: str) -> str:
+        """Извлекает код из ответа модели, удаляя маркдауны."""
+        if "```" in content:
+            parts = content.split("```")
+            # Обычно код внутри первого блока после троекратных кавычек
+            if len(parts) >= 2:
+                candidate = parts[1]
+                # Удаляем возможное указание языка в первой строке
+                candidate_lines = candidate.split('\n')
+                if candidate_lines:
+                    first_line = candidate_lines[0].strip()
+                    if len(candidate_lines) > 1 and len(first_line) < 15 and first_line.isalpha():
+                        candidate_lines = candidate_lines[1:]
+                content = '\n'.join(candidate_lines)
         return content.strip()
 
     def _get_generation_prompt(self, difficulty: str) -> str:

@@ -17,23 +17,35 @@ class MLClient:
         self.base_url = settings.ml_service_url
         self.timeout = settings.ml_service_timeout / 1000  # Конвертируем мс в секунды
     
-    async def generate_task(self, difficulty: str, topic: str | None = None, use_mock: bool = False) -> dict[str, Any]:
+    async def generate_task(
+        self,
+        difficulty: str,
+        topic: str | None = None,
+        language: str | None = None,
+        use_mock: bool = False,
+    ) -> dict[str, Any]:
         """Генерирует задачу через ML сервис
         
         Args:
             difficulty: Уровень сложности (easy, medium, hard)
             topic: Опциональная тема задачи
+            language: Целевой язык эталонного решения
             use_mock: Если True, использует mock endpoint вместо реальной генерации
             
         Returns:
             dict: Задача с полями title, description, examples, hidden_tests, hints
         """
         endpoint = '/generate-task-mock' if use_mock else '/generate-task'
+        payload: dict[str, Any] = {'difficulty': difficulty}
+        if topic:
+            payload['topic'] = topic
+        if language:
+            payload['language'] = language
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 response = await client.post(
                     f'{self.base_url}{endpoint}',
-                    json={'difficulty': difficulty, 'topic': topic} if topic else {'difficulty': difficulty}
+                    json=payload,
                 )
                 response.raise_for_status()
                 return response.json()
@@ -124,6 +136,43 @@ class MLClient:
             response = await client.post(
                 f'{self.base_url}/communication/evaluate',
                 json=json_data
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def request_follow_up(self, problem_description: str, code: str | None = None) -> str | None:
+        """Запрашивает follow-up вопрос для пользователя."""
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            json_data = {
+                'problem_description': problem_description,
+                'code': code or '',
+            }
+            response = await client.post(
+                f'{self.base_url}/communication/follow-up',
+                json=json_data,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data.get('question')
+
+    async def adaptive_next_level(
+        self,
+        current_difficulty: str,
+        is_passed: bool,
+        bad_attempts: int,
+        total_time_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        """Запрашивает у ML движка следующий уровень сложности."""
+        payload: dict[str, Any] = {
+            'current_difficulty': current_difficulty,
+            'is_passed': is_passed,
+            'bad_attempts': bad_attempts,
+            'total_time_seconds': total_time_seconds or 0,
+        }
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f'{self.base_url}/adaptive-engine',
+                json=payload,
             )
             response.raise_for_status()
             return response.json()

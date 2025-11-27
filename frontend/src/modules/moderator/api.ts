@@ -34,6 +34,14 @@ export interface ApplicationDetail {
     verdict: string | null
     test_results: any
     created_at: string
+    metric: {
+      tests_total: number | null
+      tests_passed: number | null
+      total_duration_ms: number | null
+      average_duration_ms: number | null
+      verdict: string | null
+      language: string
+    } | null
   }>
   survey_answers: Array<{
     question_id: string

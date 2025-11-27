@@ -155,6 +155,19 @@ export function ModeratorPanel({ token, onLogout }: ModeratorPanelProps) {
                     <p><strong>Статус:</strong> {sol.status === 'solved' ? '✓ Решена' : 'Попытка'}</p>
                     <p><strong>Вердикт:</strong> {sol.verdict || 'N/A'}</p>
                     <p><strong>Язык:</strong> {sol.language}</p>
+                    {sol.metric && (
+                      <div className="solution-metrics">
+                        <div>
+                          <strong>Тесты:</strong> {sol.metric.tests_passed ?? 0}/{sol.metric.tests_total ?? 0}
+                        </div>
+                        <div>
+                          <strong>Среднее время:</strong> {sol.metric.average_duration_ms ? `${sol.metric.average_duration_ms} мс` : '—'}
+                        </div>
+                        <div>
+                          <strong>Суммарное время:</strong> {sol.metric.total_duration_ms ? `${sol.metric.total_duration_ms} мс` : '—'}
+                        </div>
+                      </div>
+                    )}
                     <details>
                       <summary>Условие задачи</summary>
                       <div className="task-description">{sol.task_description}</div>

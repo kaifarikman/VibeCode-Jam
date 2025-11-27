@@ -2,13 +2,16 @@
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text, Float, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .task_metric import TaskMetric
 
 
 class TaskSolution(Base):
@@ -35,7 +38,7 @@ class TaskSolution(Base):
     )  # ACCEPTED, WRONG ANSWER, TIME LIMIT EXCEEDED, etc.
     solution_code: Mapped[str] = mapped_column(Text, nullable=False)  # Код решения
     language: Mapped[str] = mapped_column(String(50), nullable=False)  # python, typescript, go, java
-    test_results: Mapped[dict[str, Any] | None] = mapped_column(
+    test_results: Mapped[list[dict[str, Any]] | None] = mapped_column(
         JSON, nullable=True
     )  # Результаты тестов
     execution_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -52,4 +55,20 @@ class TaskSolution(Base):
     task: Mapped['Task'] = relationship(back_populates='solutions')
     vacancy: Mapped['Vacancy | None'] = relationship()
     execution: Mapped['Execution | None'] = relationship()
+    communications: Mapped[list['TaskCommunication']] = relationship(
+        back_populates='solution',
+        cascade='all, delete-orphan',
+    )
+    metric: Mapped['TaskMetric | None'] = relationship(
+        back_populates='solution',
+        cascade='all, delete-orphan',
+        uselist=False,
+    )
+    ml_correctness: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ml_efficiency: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ml_clean_code: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ml_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ml_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    anti_cheat_flag: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    anti_cheat_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 

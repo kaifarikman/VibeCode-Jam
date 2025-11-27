@@ -244,6 +244,25 @@
   margin-bottom: 16px;
 }
 
+.solution-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(20, 20, 35, 0.8);
+  border: 1px solid rgba(138, 43, 226, 0.2);
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.solution-metrics strong {
+  display: block;
+  color: #9370db;
+  margin-bottom: 4px;
+}
+
 .solution-card h3,
 .answer-card h3 {
   font-size: 16px;

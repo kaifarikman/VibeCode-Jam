@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from ..core.config import get_settings
 from ..database import get_session
 from ..dependencies.moderator import get_current_moderator
-from ..models import Application, Answer, Question, Task, TaskSolution, User, Vacancy, Moderator
+from ..models import Application, Answer, Question, Task, TaskSolution, TaskMetric, User, Vacancy, Moderator
 from ..schemas import ApplicationRead, VacancyRead
 from ..services.email import EmailService
 
@@ -26,14 +26,15 @@ async def list_applications_for_moderation(
     _moderator: Moderator = Depends(get_current_moderator),
     session: AsyncSession = Depends(get_session),
 ):
-    """Получить список заявок для модерации (статусы survey_completed и algo_test_completed)"""
+    """Получить список заявок для модерации (опрос завершен или алгоритмы выполнены)"""
     from sqlalchemy import or_
     stmt = (
         select(Application)
         .where(
             or_(
                 Application.status == 'survey_completed',
-                Application.status == 'algo_test_completed'
+                Application.status == 'algo_test_completed',
+                Application.status == 'under_review',
             )
         )
         .options(selectinload(Application.vacancy), selectinload(Application.user))
@@ -105,6 +106,14 @@ async def get_application_details(
         .options(selectinload(TaskSolution.task))
     )
     solutions_list = list(task_solutions.all())
+
+    solution_ids = [sol.id for sol in solutions_list]
+    metrics_map: dict[uuid.UUID, TaskMetric] = {}
+    if solution_ids:
+        metrics = await session.scalars(
+            select(TaskMetric).where(TaskMetric.task_solution_id.in_(solution_ids))
+        )
+        metrics_map = {metric.task_solution_id: metric for metric in metrics}
     
     # Получаем ответы на вопросы опроса для этой вакансии
     # Фильтруем по вопросам, связанным с вакансией
@@ -145,6 +154,18 @@ async def get_application_details(
                 'verdict': sol.verdict,
                 'test_results': sol.test_results,
                 'created_at': sol.created_at.isoformat(),
+                'metric': (
+                    {
+                        'tests_total': metrics_map[sol.id].tests_total,
+                        'tests_passed': metrics_map[sol.id].tests_passed,
+                        'total_duration_ms': metrics_map[sol.id].total_duration_ms,
+                        'average_duration_ms': metrics_map[sol.id].average_duration_ms,
+                        'verdict': metrics_map[sol.id].verdict,
+                        'language': metrics_map[sol.id].language,
+                    }
+                    if sol.id in metrics_map
+                    else None
+                ),
             }
             for sol in solutions_list
         ],
@@ -191,11 +212,11 @@ async def decide_application(
             detail='Application not found'
         )
     
-    # Разрешаем принимать решение для заявок со статусом survey_completed или algo_test_completed
-    if application.status not in ['survey_completed', 'algo_test_completed']:
+    # Разрешаем принимать решение для заявок со статусом survey_completed, algo_test_completed или under_review
+    if application.status not in ['survey_completed', 'algo_test_completed', 'under_review']:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f'Application status is {application.status}, expected survey_completed or algo_test_completed'
+            detail=f'Application status is {application.status}, expected survey_completed, algo_test_completed или under_review'
         )
     
     # Обновляем статус заявки

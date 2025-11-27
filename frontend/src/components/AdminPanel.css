@@ -348,7 +348,7 @@
   flex-wrap: wrap;
 }
 
-.admin-submit-btn.wide {
+.submit-btn.wide {
   flex: 1;
 }
 
@@ -560,6 +560,36 @@
   border-radius: 10px;
   border: 1px solid rgba(138, 43, 226, 0.25);
   overflow-x: auto;
+}
+
+.canonical-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 12px;
+}
+
+.canonical-preview-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.toggle-btn {
+  border: 1px solid rgba(138, 43, 226, 0.4);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  background: rgba(138, 43, 226, 0.15);
+  color: #d6bcfa;
 }
 
 .canonical-preview pre {

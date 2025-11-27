@@ -554,6 +554,81 @@ body {
   flex: 1;
 }
 
+.task-markdown {
+  font-size: 15px;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.9);
+  word-break: break-word;
+  white-space: normal;
+  hyphens: auto;
+  padding-right: 4px;
+}
+
+.task-markdown h1,
+.task-markdown h2,
+.task-markdown h3,
+.task-markdown h4,
+.task-markdown h5,
+.task-markdown h6 {
+  color: #ffffff;
+  margin: 18px 0 10px;
+  font-weight: 600;
+}
+
+.task-markdown p {
+  margin: 0 0 16px;
+}
+
+.task-markdown ul,
+.task-markdown ol {
+  margin: 0 0 16px 24px;
+  padding-left: 16px;
+}
+
+.task-markdown code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', monospace;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.task-markdown pre {
+  background: rgba(12, 12, 24, 0.9);
+  padding: 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  margin-bottom: 18px;
+}
+
+.task-markdown pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.task-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+
+.task-markdown th,
+.task-markdown td {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.task-markdown blockquote {
+  margin: 0 0 16px;
+  padding-left: 16px;
+  border-left: 3px solid rgba(138, 43, 226, 0.5);
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+
 .task-content p {
   margin: 0 0 24px 0;
   font-size: 15px;
@@ -565,9 +640,10 @@ body {
 .task-tests {
   margin-top: 24px;
   padding: 16px;
-  background: rgba(30, 30, 30, 0.8);
-  border: 1px solid rgba(138, 43, 226, 0.3);
-  border-radius: 8px;
+  background: rgba(30, 30, 30, 0.85);
+  border: 1px solid rgba(138, 43, 226, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(4, 4, 16, 0.6);
 }
 
 .task-tests h3 {
@@ -670,6 +746,63 @@ body {
 .results-header span {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
+}
+
+.contest-finish-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid rgba(138, 43, 226, 0.4);
+  border-radius: 12px;
+  background: rgba(30, 30, 60, 0.7);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.contest-finish-banner h4 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  color: #ffffff;
+}
+
+.contest-finish-banner p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+}
+
+.contest-finish-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.contest-finish-actions button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.contest-finish-actions .primary {
+  background: linear-gradient(135deg, #8a2be2 0%, #9370db 100%);
+  color: #fff;
+  border: 1px solid rgba(138, 43, 226, 0.6);
+}
+
+.contest-ghost {
+  background: transparent;
+  border: 1px solid rgba(138, 43, 226, 0.5);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.contest-ghost:hover {
+  background: rgba(138, 43, 226, 0.1);
+  border-color: #8a2be2;
 }
 
 
@@ -953,6 +1086,209 @@ body {
   color: #f44336;
 }
 
+.result-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(20, 20, 35, 0.6);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+}
+
+.result-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.result-card-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.result-card-feedback {
+  margin: 12px 0 0 0;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
+}
+
+.ml-score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.ml-score-grid div {
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(15, 15, 30, 0.7);
+  border: 1px solid rgba(138, 43, 226, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ml-score-grid span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ml-score-grid strong {
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge.success {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.4);
+}
+
+.badge.warning {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.badge.danger {
+  background: rgba(244, 67, 54, 0.15);
+  color: #ff6b6b;
+  border: 1px solid rgba(244, 67, 54, 0.4);
+}
+
+.badge.info {
+  background: rgba(99, 102, 241, 0.15);
+  color: #7c83f2;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.chat-panel {
+  background: rgba(20, 20, 20, 0.6);
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(138, 43, 226, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.chat-question h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  color: #ffffff;
+}
+
+.chat-markdown {
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.85);
+  word-break: break-word;
+}
+
+.chat-markdown p {
+  margin: 0 0 12px 0;
+}
+
+.chat-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', monospace;
+}
+
+.chat-markdown pre {
+  background: rgba(12, 12, 24, 0.85);
+  border: 1px solid rgba(138, 43, 226, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.chat-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-score {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.chat-input {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+.chat-input textarea {
+  border-radius: 10px;
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  background: rgba(30, 30, 50, 0.85);
+  color: #ffffff;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 140px;
+}
+
+.chat-input textarea:focus {
+  outline: none;
+  border-color: #8a2be2;
+  box-shadow: 0 0 0 2px rgba(138, 43, 226, 0.2);
+}
+
+.chat-answer-view {
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(12, 12, 24, 0.7);
+  border: 1px solid rgba(138, 43, 226, 0.2);
+}
+
+.chat-send-button {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  min-width: 140px;
+}
+
+.chat-send-button::after {
+  content: '➤';
+  font-size: 13px;
+}
+
+.chat-error {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(244, 67, 54, 0.15);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  color: #ff8a80;
+}
 .execution-meta {
   display: flex;
   gap: 16px;

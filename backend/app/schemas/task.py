@@ -33,6 +33,7 @@ class TaskGenerateRequest(BaseModel):
     difficulty: str = Field(..., description='Уровень сложности: easy, medium, hard')
     topic: str | None = Field(None, max_length=100, description='Тема/категория задачи (опционально)')
     vacancy_id: uuid.UUID | None = Field(None, description='ID вакансии, к которой привязать задачу (опционально)')
+    language: str | None = Field(None, description='Целевой язык для эталонного решения (python, go, java, typescript)')
 
 
 class TaskUpdate(BaseModel):

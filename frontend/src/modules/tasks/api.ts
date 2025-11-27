@@ -1,4 +1,12 @@
-import type { Task, TaskCreate, TaskUpdate, TestCase } from './types'
+import type {
+  Task,
+  TaskCreate,
+  TaskUpdate,
+  TestCase,
+  SolutionMlMeta,
+  SolutionAntiCheatMeta,
+  TaskCommunication,
+} from './types'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') ?? 'http://localhost:8000/api'
@@ -69,6 +77,8 @@ export interface LastSolution {
   status?: string
   verdict?: string | null
   updated_at?: string
+  ml?: SolutionMlMeta | null
+  anti_cheat?: SolutionAntiCheatMeta | null
 }
 
 export async function fetchLastSolution(
@@ -109,5 +119,37 @@ export async function fetchContestCompletionStatus(
     throw new Error(error.detail || 'Не удалось проверить статус завершения')
   }
   return (await response.json()) as ContestCompletionStatus
+}
+
+export async function fetchTaskCommunication(
+  token: string,
+  taskId: string,
+): Promise<TaskCommunication | null> {
+  const response = await fetch(buildUrl(`/tasks/${taskId}/communication`), {
+    headers: getAuthHeaders(token),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Ошибка загрузки чата' }))
+    throw new Error(error.detail || 'Не удалось загрузить чат')
+  }
+  const data = await response.json()
+  return data as TaskCommunication | null
+}
+
+export async function answerTaskCommunication(
+  token: string,
+  taskId: string,
+  answer: string,
+): Promise<TaskCommunication> {
+  const response = await fetch(buildUrl(`/tasks/${taskId}/communication/answer`), {
+    method: 'POST',
+    headers: getAuthHeaders(token),
+    body: JSON.stringify({ answer }),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Ошибка отправки ответа' }))
+    throw new Error(error.detail || 'Не удалось отправить ответ')
+  }
+  return (await response.json()) as TaskCommunication
 }
 

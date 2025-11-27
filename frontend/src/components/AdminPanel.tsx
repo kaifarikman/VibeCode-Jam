@@ -22,7 +22,7 @@ import type {
   VacancyCreate,
   VacancyUpdate,
 } from '../modules/admin/types'
-import type { Task, TaskCreate, TaskGenerateRequest, TaskUpdate } from '../modules/tasks/types'
+import type { Task, TaskCreate, TaskGenerateRequest, TaskUpdate, TestCase } from '../modules/tasks/types'
 import { TestCasesEditor } from './TestCasesEditor'
 import './AdminPanel.css'
 
@@ -31,6 +31,34 @@ interface AdminPanelProps {
 }
 
 type Tab = 'questions' | 'vacancies' | 'tasks'
+
+type RawTestCase = Partial<TestCase> & {
+  expected_output?: string | null
+  expectedOutput?: string | null
+  answer?: string | null
+  result?: string | null
+}
+
+const normalizeTestCases = (tests?: RawTestCase[] | null): TestCase[] => {
+  if (!tests) {
+    return []
+  }
+
+  return tests.map((test) => {
+    const fallbackOutput =
+      (typeof test?.output === 'string' && test.output) ||
+      (typeof test?.expected_output === 'string' && test.expected_output) ||
+      (typeof test?.expectedOutput === 'string' && test.expectedOutput) ||
+      (typeof test?.answer === 'string' && test.answer) ||
+      (typeof test?.result === 'string' && test.result) ||
+      ''
+
+    return {
+      input: typeof test?.input === 'string' ? test.input : '',
+      output: fallbackOutput,
+    }
+  })
+}
 
 export function AdminPanel({ token }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>('questions')
@@ -76,7 +104,21 @@ export function AdminPanel({ token }: AdminPanelProps) {
     difficulty: 'medium',
     topic: null,
     vacancy_id: null,
+    language: null,
   })
+  useEffect(() => {
+    if (!generateTaskFormData.vacancy_id) {
+      return
+    }
+    const selectedVacancy = vacancies.find((v) => v.id === generateTaskFormData.vacancy_id)
+    if (selectedVacancy && generateTaskFormData.language !== selectedVacancy.language) {
+      setGenerateTaskFormData((prev) => ({
+        ...prev,
+        language: selectedVacancy.language ?? prev.language ?? 'python',
+      }))
+    }
+  }, [generateTaskFormData.vacancy_id, generateTaskFormData.language, vacancies])
+  const [expandedCanonicalTaskId, setExpandedCanonicalTaskId] = useState<string | null>(null)
 
   useEffect(() => {
     void loadData()
@@ -255,7 +297,11 @@ export function AdminPanel({ token }: AdminPanelProps) {
       }
       
       // Показываем сообщение о генерации
-      const generatedTask = await generateTask(token, generateTaskFormData)
+      const selectedVacancy = vacancies.find((v) => v.id === generateTaskFormData.vacancy_id)
+      const generatedTask = await generateTask(token, {
+        ...generateTaskFormData,
+        language: selectedVacancy?.language ?? 'python',
+      })
       
       // Закрываем форму генерации
       setShowGenerateTaskForm(false)
@@ -263,6 +309,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
         difficulty: 'medium',
         topic: null,
         vacancy_id: null,
+        language: null,
       })
       
       // Обновляем список задач сразу
@@ -274,8 +321,8 @@ export function AdminPanel({ token }: AdminPanelProps) {
         description: generatedTask.description,
         topic: generatedTask.topic,
         difficulty: generatedTask.difficulty,
-        open_tests: generatedTask.open_tests || [],
-        hidden_tests: generatedTask.hidden_tests || [],
+        open_tests: normalizeTestCases(generatedTask.open_tests),
+        hidden_tests: normalizeTestCases(generatedTask.hidden_tests),
         vacancy_id: generatedTask.vacancy_id,
         canonical_solution: generatedTask.canonical_solution || '',
       })
@@ -1021,10 +1068,12 @@ export function AdminPanel({ token }: AdminPanelProps) {
                   return
                 }
                 setShowGenerateTaskForm(true)
+        const initialVacancy = vacancies.find((v) => v.id === initialVacancyId)
                 setGenerateTaskFormData({
                   difficulty: 'medium',
                   topic: null,
                   vacancy_id: initialVacancyId,
+          language: initialVacancy?.language ?? 'python',
                 })
               }}
               disabled={vacancies.length === 0}
@@ -1048,10 +1097,12 @@ export function AdminPanel({ token }: AdminPanelProps) {
                   className="close-btn"
                   onClick={() => {
                     setShowGenerateTaskForm(false)
+                    const initialVacancy = vacancies[0]
                     setGenerateTaskFormData({
                       difficulty: 'medium',
                       topic: null,
-                      vacancy_id: vacancies[0]?.id ?? null,
+                      vacancy_id: initialVacancy?.id ?? null,
+                      language: initialVacancy?.language ?? 'python',
                     })
                   }}
                 >
@@ -1098,7 +1149,15 @@ export function AdminPanel({ token }: AdminPanelProps) {
                     <span className="label-text">Вакансия (обязательно)</span>
                     <select
                       value={generateTaskFormData.vacancy_id || ''}
-                      onChange={(e) => setGenerateTaskFormData({ ...generateTaskFormData, vacancy_id: e.target.value || null })}
+                      onChange={(e) => {
+                        const newVacancyId = e.target.value || null
+                        const selectedVacancy = vacancies.find((v) => v.id === newVacancyId)
+                        setGenerateTaskFormData({
+                          ...generateTaskFormData,
+                          vacancy_id: newVacancyId,
+                          language: selectedVacancy?.language ?? generateTaskFormData.language ?? 'python',
+                        })
+                      }}
                       required
                     >
                       <option value="" disabled>
@@ -1114,18 +1173,20 @@ export function AdminPanel({ token }: AdminPanelProps) {
                   </label>
                 </div>
                 <div className="generate-task-footer">
-                  <button type="submit" className="admin-submit-btn wide" disabled={generatingTask}>
+                  <button type="submit" className="submit-btn wide" disabled={generatingTask}>
                     {generatingTask ? 'Генерация задачи...' : 'Сгенерировать задачу'}
                   </button>
                   <button
                     type="button"
-                    className="admin-cancel-btn"
+                    className="ghost"
                     onClick={() => {
                       setShowGenerateTaskForm(false)
+                    const initialVacancy = vacancies[0]
                       setGenerateTaskFormData({
                         difficulty: 'medium',
                         topic: null,
-                        vacancy_id: vacancies[0]?.id ?? null,
+                      vacancy_id: initialVacancy?.id ?? null,
+                      language: initialVacancy?.language ?? 'python',
                       })
                     }}
                     disabled={generatingTask}
@@ -1329,11 +1390,38 @@ export function AdminPanel({ token }: AdminPanelProps) {
                           {task.description.length > 300 ? '...' : ''}
                         </div>
                         <div className="canonical-preview">
+                          <div className="canonical-preview-header">
+                            <strong>Эталонное решение (Python)</strong>
+                            {task.canonical_solution && (
+                              <div className="canonical-preview-actions">
+                                <button
+                                  type="button"
+                                  className="copy-btn"
+                                  onClick={() => navigator.clipboard.writeText(task.canonical_solution ?? '')}
+                                >
+                                  📋 Копировать
+                                </button>
+                                <button
+                                  type="button"
+                                  className="toggle-btn"
+                                  onClick={() =>
+                                    setExpandedCanonicalTaskId((prev) => (prev === task.id ? null : task.id))
+                                  }
+                                >
+                                  {expandedCanonicalTaskId === task.id ? 'Скрыть' : 'Показать полностью'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           {task.canonical_solution ? (
+                            expandedCanonicalTaskId === task.id ? (
+                              <pre>{task.canonical_solution}</pre>
+                            ) : (
                             <pre>
-                              {task.canonical_solution.slice(0, 600)}
-                              {task.canonical_solution.length > 600 ? '…' : ''}
+                                {task.canonical_solution.slice(0, 400)}
+                                {task.canonical_solution.length > 400 ? '…' : ''}
                             </pre>
+                            )
                           ) : (
                             <p className="field-hint">Эталонное решение не сохранено.</p>
                           )}
@@ -1350,8 +1438,8 @@ export function AdminPanel({ token }: AdminPanelProps) {
                               description: task.description,
                               topic: task.topic,
                               difficulty: task.difficulty,
-                              open_tests: task.open_tests || [],
-                              hidden_tests: task.hidden_tests || [],
+                              open_tests: normalizeTestCases(task.open_tests),
+                              hidden_tests: normalizeTestCases(task.hidden_tests),
                               vacancy_id: task.vacancy_id,
                               canonical_solution: task.canonical_solution || '',
                             })

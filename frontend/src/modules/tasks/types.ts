@@ -43,5 +43,33 @@ export type TaskGenerateRequest = {
   difficulty: 'easy' | 'medium' | 'hard'
   topic?: string | null
   vacancy_id?: string | null
+  language?: string | null
+}
+
+export type SolutionMlMeta = {
+  correctness?: number | null
+  efficiency?: number | null
+  clean_code?: number | null
+  feedback?: string | null
+  passed?: boolean | null
+}
+
+export type SolutionAntiCheatMeta = {
+  flag?: boolean | null
+  reason?: string | null
+}
+
+export type TaskCommunication = {
+  id: string
+  task_id: string
+  vacancy_id: string | null
+  solution_id: string
+  question: string
+  answer: string | null
+  status: 'pending' | 'evaluating' | 'completed' | 'error'
+  ml_score?: number | null
+  ml_feedback?: string | null
+  created_at: string
+  updated_at: string
 }
 

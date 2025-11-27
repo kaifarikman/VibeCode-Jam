@@ -1,16 +1,21 @@
 """Роуты для работы с алгоритмическими задачами"""
 
+import logging
 import random
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from ..database import get_session
 from ..dependencies.auth import get_current_user
-from ..models import Task, TaskSolution, User, Vacancy, UserContestTasks
-from ..schemas import TaskRead, TaskTestsForSubmit
+from ..models import Task, TaskSolution, TaskCommunication, User, Vacancy, UserContestTasks
+from ..schemas import TaskRead, TaskTestsForSubmit, TaskCommunicationRead, TaskCommunicationAnswer
+from ..services.ml_client import ml_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix='/tasks', tags=['tasks'])
 
@@ -112,7 +117,24 @@ async def get_contest_tasks(
         task_ids=task_ids
     )
     session.add(user_contest_tasks)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        # Binding уже существует (гонка запросов). Возвращаем его.
+        existing_binding = await session.scalar(
+            select(UserContestTasks).where(
+                UserContestTasks.user_id == current_user.id,
+                UserContestTasks.vacancy_id == vacancy_id,
+            )
+        )
+        if not existing_binding:
+            raise
+        final_tasks = []
+        for task_id in existing_binding.task_ids:
+            task = await session.get(Task, task_id)
+            if task:
+                final_tasks.append(task)
     
     # Конвертируем в TaskRead (без закрытых тестов)
     result = []
@@ -250,11 +272,94 @@ async def get_last_solution(
     if not solution:
         return {'solution_code': None, 'language': None}
     
+    ml_payload = {
+        'correctness': solution.ml_correctness,
+        'efficiency': solution.ml_efficiency,
+        'clean_code': solution.ml_clean_code,
+        'feedback': solution.ml_feedback,
+        'passed': solution.ml_passed,
+    }
+    anti_payload = {
+        'flag': solution.anti_cheat_flag,
+        'reason': solution.anti_cheat_reason,
+    }
+    
     return {
         'solution_code': solution.solution_code,
         'language': solution.language,
         'status': solution.status,
         'verdict': solution.verdict,
         'updated_at': solution.updated_at.isoformat(),
+        'ml': ml_payload,
+        'anti_cheat': anti_payload,
     }
+
+
+@router.get('/{task_id}/communication', response_model=TaskCommunicationRead | None)
+async def get_task_communication(
+    task_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Получить активную коммуникацию по задаче"""
+    communication = await session.scalar(
+        select(TaskCommunication)
+        .where(
+            TaskCommunication.user_id == current_user.id,
+            TaskCommunication.task_id == task_id,
+        )
+        .order_by(TaskCommunication.created_at.desc())
+    )
+    if not communication:
+        return None
+    return TaskCommunicationRead.from_orm(communication)
+
+
+@router.post('/{task_id}/communication/answer', response_model=TaskCommunicationRead)
+async def answer_task_communication(
+    task_id: uuid.UUID,
+    payload: TaskCommunicationAnswer,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Отправить ответ на follow-up вопрос"""
+    communication = await session.scalar(
+        select(TaskCommunication)
+        .where(
+            TaskCommunication.user_id == current_user.id,
+            TaskCommunication.task_id == task_id,
+        )
+        .order_by(TaskCommunication.created_at.desc())
+    )
+    if not communication:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Communication not found')
+    if communication.status != 'pending':
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Вопрос уже обработан')
+    
+    solution = await session.get(TaskSolution, communication.solution_id)
+    task = await session.get(Task, task_id)
+    if not solution or not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Task or solution not found')
+    
+    communication.answer = payload.answer.strip()
+    communication.status = 'evaluating'
+    await session.flush()
+    
+    try:
+        result = await ml_client.evaluate_communication(
+            problem_description=task.description or '',
+            user_explanation=communication.answer,
+            code=solution.solution_code,
+        )
+        communication.ml_score = result.get('communication_score')
+        communication.ml_feedback = result.get('feedback')
+        communication.status = 'completed'
+    except Exception as exc:  # noqa: BLE001
+        communication.status = 'error'
+        communication.ml_feedback = f'Ошибка оценки: {exc}'
+        logger.error('Failed to evaluate communication: %s', exc)
+    
+    await session.commit()
+    await session.refresh(communication)
+    return TaskCommunicationRead.from_orm(communication)
 

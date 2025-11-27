@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,6 +29,8 @@ class UserContestTasks(Base):
     task_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=False
     )  # Массив ID задач (3 задачи)
+    next_difficulty: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    next_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
